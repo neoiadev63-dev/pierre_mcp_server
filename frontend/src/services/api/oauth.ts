@@ -45,11 +45,12 @@ export const oauthApi = {
   },
 
   // Get OAuth authorization URL for a provider
-  // Calls the mobile/init endpoint to get the authorization URL from the backend
-  // This works through Vite's proxy in development
-  async getOAuthAuthorizeUrl(provider: string): Promise<string> {
-    const response = await axios.get(`/api/oauth/mobile/init/${provider}`);
-    return response.data.authorization_url;
+  // Returns the direct authorization URL that the browser should navigate to
+  // Note: User must be authenticated for this to work (requires valid session cookie)
+  async getOAuthAuthorizeUrl(provider: string, userId: string): Promise<string> {
+    // Return the full backend URL for OAuth authorization
+    // The backend will redirect to the provider's OAuth page
+    return `http://localhost:8081/api/oauth/auth/${provider}/${userId}`;
   },
 
   /**

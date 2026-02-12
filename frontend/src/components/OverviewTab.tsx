@@ -5,6 +5,7 @@
 // ABOUTME: Features modern stat cards, tier visualization, and admin configuration panel
 
 import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import type { DashboardOverview, RateLimitOverview, TierUsage } from '../types/api';
 import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
@@ -35,6 +36,7 @@ const tierConfig: Record<string, { color: string; bg: string; border: string; ic
 
 export default function OverviewTab({ overview, overviewLoading, rateLimits, weeklyUsage, a2aOverview, pendingUsersCount = 0, pendingCoachReviews = 0, onNavigate }: OverviewTabProps) {
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   // Mini chart data
   const miniChartData = {
@@ -83,12 +85,12 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
         <div className="stat-card-dark">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-zinc-400 mb-1">Total Connections</p>
+              <p className="text-sm font-medium text-zinc-400 mb-1">{t('overview.totalConnections')}</p>
               <p className="text-3xl font-bold bg-gradient-to-r from-pierre-violet to-pierre-cyan bg-clip-text text-transparent">
                 {(overview?.total_api_keys || 0) + (a2aOverview?.total_clients || 0)}
               </p>
               <p className="text-xs text-zinc-500 mt-1">
-                {overview?.total_api_keys || 0} Keys + {a2aOverview?.total_clients || 0} Apps
+                {t('overview.keysAndApps', { keys: overview?.total_api_keys || 0, apps: a2aOverview?.total_clients || 0 })}
               </p>
             </div>
             <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-pierre-violet/30 to-pierre-cyan/30 flex items-center justify-center">
@@ -103,12 +105,12 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
         <div className="stat-card-dark">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-zinc-400 mb-1">Active</p>
+              <p className="text-sm font-medium text-zinc-400 mb-1">{t('overview.active')}</p>
               <p className="text-3xl font-bold text-pierre-activity">
                 {(overview?.active_api_keys || 0) + (a2aOverview?.active_clients || 0)}
               </p>
               <p className="text-xs text-zinc-500 mt-1">
-                {overview?.active_api_keys || 0} Keys + {a2aOverview?.active_clients || 0} Apps
+                {t('overview.keysAndApps', { keys: overview?.active_api_keys || 0, apps: a2aOverview?.active_clients || 0 })}
               </p>
             </div>
             <CircularProgress
@@ -125,11 +127,11 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
         <div className="stat-card-dark">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-zinc-400 mb-1">Today</p>
+              <p className="text-sm font-medium text-zinc-400 mb-1">{t('overview.today')}</p>
               <p className="text-3xl font-bold text-pierre-nutrition">
                 {((overview?.total_requests_today || 0) + (a2aOverview?.requests_today || 0)).toLocaleString()}
               </p>
-              <p className="text-xs text-zinc-500 mt-1">requests</p>
+              <p className="text-xs text-zinc-500 mt-1">{t('overview.requests')}</p>
             </div>
             <div className="w-12 h-12 rounded-lg bg-pierre-nutrition/20 flex items-center justify-center">
               <svg className="w-6 h-6 text-pierre-nutrition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,11 +145,11 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
         <div className="stat-card-dark">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-zinc-400 mb-1">This Month</p>
+              <p className="text-sm font-medium text-zinc-400 mb-1">{t('overview.thisMonth')}</p>
               <p className="text-3xl font-bold text-pierre-recovery">
                 {((overview?.total_requests_this_month || 0) + (a2aOverview?.requests_this_month || 0)).toLocaleString()}
               </p>
-              <p className="text-xs text-zinc-500 mt-1">requests</p>
+              <p className="text-xs text-zinc-500 mt-1">{t('overview.requests')}</p>
             </div>
             <div className="w-12 h-12 rounded-lg bg-pierre-recovery/20 flex items-center justify-center">
               <svg className="w-6 h-6 text-pierre-recovery" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,13 +178,13 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
             <Card variant="dark" className="!p-5">
               <div className="flex justify-between items-center mb-3">
                 <div>
-                  <h3 className="text-base font-semibold text-white">7-Day Activity</h3>
+                  <h3 className="text-base font-semibold text-white">{t('overview.7DayActivity')}</h3>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Avg {avgPerDay.toLocaleString()}/day{peakDayName && ` · Peak ${peakDayName}`}
+                    {t('overview.avgPerDay', { value: avgPerDay.toLocaleString() })}{peakDayName && ` · ${t('overview.peakDay', { day: peakDayName })}`}
                   </p>
                 </div>
                 <span className="px-3 py-1 text-sm font-medium bg-pierre-violet/20 text-pierre-violet-light rounded-full border border-pierre-violet/30">
-                  {totalRequests.toLocaleString()} total
+                  {t('overview.total', { value: totalRequests.toLocaleString() })}
                 </span>
               </div>
               <div style={{ height: '120px' }}>
@@ -199,9 +201,9 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
           <Card variant="dark" className="!p-5">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-base font-semibold text-white">Rate Limits</h3>
+                <h3 className="text-base font-semibold text-white">{t('overview.rateLimits')}</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  {totalCapacity > 0 ? `${Math.round((totalUsed / totalCapacity) * 100)}% of capacity used` : 'Monitoring usage'}
+                  {totalCapacity > 0 ? t('overview.ofCapacityUsed', { percent: Math.round((totalUsed / totalCapacity) * 100) }) : t('overview.monitoringUsage')}
                 </p>
               </div>
               {totalCapacity > 0 && (
@@ -246,7 +248,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
       {/* Tier Usage Breakdown */}
       {overview?.current_month_usage_by_tier && overview.current_month_usage_by_tier.length > 0 && (
         <Card variant="dark" className="!p-5">
-          <h3 className="text-base font-semibold text-white mb-4">Usage by Tier</h3>
+          <h3 className="text-base font-semibold text-white mb-4">{t('overview.usageByTier')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {overview.current_month_usage_by_tier.map((tier: TierUsage) => {
               const config = tierConfig[tier.tier] || tierConfig.trial;
@@ -271,15 +273,15 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                   </div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span className="text-zinc-500">Keys</span>
+                      <span className="text-zinc-500">{t('overview.keys', { count: 0 })}</span>
                       <span className="font-medium text-white">{tier.key_count}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-zinc-500">Requests</span>
+                      <span className="text-zinc-500">{t('overview.requests')}</span>
                       <span className="font-medium text-white">{tier.total_requests.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-zinc-500">Avg/Key</span>
+                      <span className="text-zinc-500">{t('overview.avgPerKey')}</span>
                       <span className="font-medium text-white">{avgPerKey.toLocaleString()}</span>
                     </div>
                   </div>
@@ -299,7 +301,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
               <svg className="w-4 h-4 text-pierre-violet-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              Quick Actions
+              {t('overview.quickActions')}
             </h3>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -309,7 +311,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
-                API Keys
+                {t('overview.apiKeys')}
               </button>
               <button
                 onClick={() => onNavigate?.('analytics')}
@@ -318,7 +320,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                Analytics
+                {t('overview.analytics')}
               </button>
               <button
                 onClick={() => onNavigate?.('monitor')}
@@ -328,7 +330,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-                Monitor
+                {t('overview.monitor')}
               </button>
               <button
                 onClick={() => onNavigate?.('users')}
@@ -337,7 +339,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
-                Users
+                {t('overview.users')}
               </button>
               <button
                 onClick={() => onNavigate?.('coach-store')}
@@ -346,7 +348,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                Coach Store
+                {t('overview.coachStore')}
               </button>
             </div>
           </Card>
@@ -357,7 +359,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
               <svg className="w-4 h-4 text-pierre-nutrition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              Alerts
+              {t('overview.alerts')}
             </h3>
             <div className="space-y-2">
               {/* Pending Users Alert */}
@@ -369,7 +371,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-pierre-nutrition animate-pulse" />
                     <span className="text-sm font-medium text-white">
-                      {pendingUsersCount} user{pendingUsersCount !== 1 ? 's' : ''} awaiting approval
+                      {t('overview.usersAwaitingApproval', { count: pendingUsersCount })}
                     </span>
                   </div>
                   <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -387,7 +389,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-pierre-violet animate-pulse" />
                     <span className="text-sm font-medium text-white">
-                      {pendingCoachReviews} coach{pendingCoachReviews !== 1 ? 'es' : ''} pending review
+                      {t('overview.coachesPendingReview', { count: pendingCoachReviews })}
                     </span>
                   </div>
                   <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -405,7 +407,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-pierre-red-500 animate-pulse" />
                     <span className="text-sm font-medium text-white">
-                      {rateLimits.filter((rl: RateLimitOverview) => rl.usage_percentage > 90).length} key{rateLimits.filter((rl: RateLimitOverview) => rl.usage_percentage > 90).length !== 1 ? 's' : ''} near limit
+                      {t('overview.keysNearLimit', { count: rateLimits.filter((rl: RateLimitOverview) => rl.usage_percentage > 90).length })}
                     </span>
                   </div>
                   <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -420,7 +422,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
                   <svg className="w-4 h-4 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-sm text-zinc-300">All systems normal</span>
+                  <span className="text-sm text-zinc-300">{t('overview.allSystemsNormal')}</span>
                 </div>
               )}
             </div>

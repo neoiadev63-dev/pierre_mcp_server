@@ -4,6 +4,7 @@
 // ABOUTME: Modal for connecting fitness data providers during chat
 // ABOUTME: Displays provider connection cards with skip option
 
+import { useTranslation } from 'react-i18next';
 import ProviderConnectionCards from '../ProviderConnectionCards';
 
 interface ProviderConnectionModalProps {
@@ -23,6 +24,8 @@ export default function ProviderConnectionModal({
   onSkip,
   isSkipPending,
 }: ProviderConnectionModalProps) {
+  const { t } = useTranslation();
+
   if (!isOpen) return null;
 
   return (
@@ -39,7 +42,7 @@ export default function ProviderConnectionModal({
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -53,10 +56,10 @@ export default function ProviderConnectionModal({
               </svg>
             </div>
             <h2 className="text-2xl font-semibold text-white mb-3">
-              Connect your fitness data
+              {t('providers.connectYourFitnessData')}
             </h2>
             <p className="text-zinc-400">
-              Link a provider for personalized insights, or continue without
+              {t('providers.linkProviderOrContinue')}
             </p>
           </div>
 

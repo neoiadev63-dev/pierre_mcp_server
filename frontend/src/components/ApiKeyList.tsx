@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Button, Card, CardHeader, Badge, StatusFilter, ConfirmDialog } from './ui';
@@ -15,6 +16,7 @@ interface ApiKeyListProps {
 }
 
 export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
+  const { t } = useTranslation();
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTokens, setSelectedTokens] = useState<Set<string>>(new Set());
@@ -122,9 +124,9 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h3 className="text-lg font-medium text-pierre-red-400">Failed to load API tokens</h3>
+            <h3 className="text-lg font-medium text-pierre-red-400">{t('connections.failedToLoadApiTokens')}</h3>
             <p className="text-zinc-300 mt-1">
-              {error instanceof Error ? error.message : 'An unknown error occurred'}
+              {error instanceof Error ? error.message : t('common.unknownError')}
             </p>
           </div>
         </div>
@@ -137,8 +139,8 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
       {/* Main Card */}
       <Card variant="dark">
         <CardHeader
-          title="Your API Tokens"
-          subtitle={`${allTokens.length} total tokens`}
+          title={t('connections.yourApiTokens')}
+          subtitle={t('connections.totalTokens', { count: allTokens.length })}
         />
 
         {/* Status Filter */}
@@ -155,7 +157,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
             {selectedTokens.size > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-zinc-400">
-                  {selectedTokens.size} selected
+                  {t('connections.selected', { count: selectedTokens.size })}
                 </span>
                 <Button
                   onClick={handleBulkRevoke}
@@ -164,7 +166,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                   className="text-pierre-red-400 hover:bg-pierre-red-500/10"
                   size="sm"
                 >
-                  Revoke Selected
+                  {t('connections.revokeSelected')}
                 </Button>
               </div>
             )}
@@ -175,8 +177,8 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
         {tokens.length === 0 ? (
           <div className="text-center py-8 text-zinc-500 px-6 pb-6">
             <div className="text-4xl mb-4">🔐</div>
-            <p className="text-lg mb-2 text-white">No API tokens yet</p>
-            <p>Create your first API token to enable programmatic access</p>
+            <p className="text-lg mb-2 text-white">{t('connections.noApiTokensYet')}</p>
+            <p>{t('connections.createFirstApiToken')}</p>
           </div>
         ) : (
           <div className="space-y-4 px-6 pb-6">
@@ -189,7 +191,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                 className="rounded border-white/20 bg-white/10 text-pierre-violet focus:ring-pierre-violet"
               />
               <span className="text-sm font-medium text-zinc-300">
-                Select All ({tokens.length})
+                {t('connections.selectAll')} ({tokens.length})
               </span>
             </div>
 
@@ -226,10 +228,10 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <Badge variant={token.is_active ? 'success' : 'info'}>
-                            {token.is_active ? 'Active' : 'Inactive'}
+                            {token.is_active ? t('connections.active') : t('connections.inactive')}
                           </Badge>
                           {token.is_super_admin && (
-                            <Badge variant="warning">Super Admin</Badge>
+                            <Badge variant="warning">{t('connections.superAdmin')}</Badge>
                           )}
                         </div>
                       </div>
@@ -240,7 +242,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                           variant="secondary"
                           size="sm"
                         >
-                          View Details
+                          {t('common.viewDetails')}
                         </Button>
                         {token.is_active && (
                           <Button
@@ -250,7 +252,7 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
                             className="text-pierre-red-400 hover:bg-pierre-red-500/10"
                             size="sm"
                           >
-                            Revoke
+                            {t('common.revoke')}
                           </Button>
                         )}
                       </div>
@@ -258,30 +260,30 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
 
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="text-zinc-500">Created:</span>
+                        <span className="text-zinc-500">{t('connections.created')}</span>
                         <p className="font-medium text-white">{format(new Date(token.created_at), 'MMM d, yyyy')}</p>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Expires:</span>
+                        <span className="text-zinc-500">{t('connections.expires')}</span>
                         <p className="font-medium text-white">
-                          {token.expires_at ? format(new Date(token.expires_at), 'MMM d, yyyy') : 'Never'}
+                          {token.expires_at ? format(new Date(token.expires_at), 'MMM d, yyyy') : t('connections.never')}
                         </p>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Usage:</span>
-                        <p className="font-medium text-white">{token.usage_count} requests</p>
+                        <span className="text-zinc-500">{t('connections.usage')}</span>
+                        <p className="font-medium text-white">{token.usage_count} {t('connections.requests')}</p>
                       </div>
                       <div>
-                        <span className="text-zinc-500">Last Used:</span>
+                        <span className="text-zinc-500">{t('connections.lastUsed')}</span>
                         <p className="font-medium text-white">
-                          {token.last_used_at ? format(new Date(token.last_used_at), 'MMM d, yyyy') : 'Never'}
+                          {token.last_used_at ? format(new Date(token.last_used_at), 'MMM d, yyyy') : t('connections.never')}
                         </p>
                       </div>
                     </div>
 
                     {token.permissions && token.permissions.length > 0 && (
                       <div className="mt-3">
-                        <span className="text-sm text-zinc-500">Permissions:</span>
+                        <span className="text-sm text-zinc-500">{t('connections.permissions')}</span>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {token.permissions.map((permission) => (
                             <Badge key={permission} variant="info" className="text-xs">
@@ -304,10 +306,10 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
         isOpen={tokenToRevoke !== null}
         onClose={() => setTokenToRevoke(null)}
         onConfirm={confirmSingleRevoke}
-        title="Revoke API Token"
-        message={`Are you sure you want to revoke "${tokenToRevoke?.service_name}"? This action cannot be undone and any services using this API token will lose access.`}
-        confirmLabel="Revoke API Token"
-        cancelLabel="Cancel"
+        title={t('connections.revokeApiToken')}
+        message={t('connections.revokeApiTokenMessage', { serviceName: tokenToRevoke?.service_name })}
+        confirmLabel={t('connections.revokeApiTokenConfirm')}
+        cancelLabel={t('common.cancel')}
         variant="danger"
         isLoading={revokeTokenMutation.isPending}
       />
@@ -317,10 +319,10 @@ export default function ApiKeyList({ onViewDetails }: ApiKeyListProps) {
         isOpen={tokensToRevoke !== null}
         onClose={() => setTokensToRevoke(null)}
         onConfirm={confirmBulkRevoke}
-        title="Revoke Multiple API Tokens"
-        message={`Are you sure you want to revoke ${tokensToRevoke?.size || 0} API token(s)? This action cannot be undone and any services using these tokens will lose access.`}
-        confirmLabel={`Revoke ${tokensToRevoke?.size || 0} API Token(s)`}
-        cancelLabel="Cancel"
+        title={t('connections.revokeMultipleApiTokens')}
+        message={t('connections.revokeMultipleApiTokensMessage', { count: tokensToRevoke?.size || 0 })}
+        confirmLabel={t('connections.revokeMultipleConfirm', { count: tokensToRevoke?.size || 0 })}
+        cancelLabel={t('common.cancel')}
         variant="danger"
         isLoading={revokeTokenMutation.isPending}
       />

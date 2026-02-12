@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { adminApi } from '../services/api';
 import type { Coach, User } from '../types/api';
 import { Card, Button } from './ui';
@@ -50,6 +51,7 @@ const defaultFormData: CoachFormData = {
 
 export default function SystemCoachesTab() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -165,7 +167,7 @@ export default function SystemCoachesTab() {
   };
 
   const handleDelete = () => {
-    if (selectedCoach && confirm(`Delete coach "${selectedCoach.title}"? This cannot be undone.`)) {
+    if (selectedCoach && confirm(t('coaches.deleteSystemCoachConfirm', { title: selectedCoach.title }))) {
       deleteMutation.mutate(selectedCoach.id);
     }
   };
@@ -177,7 +179,7 @@ export default function SystemCoachesTab() {
   };
 
   const handleUnassign = (userId: string) => {
-    if (selectedCoach && confirm('Remove this user\'s access to the coach?')) {
+    if (selectedCoach && confirm(t('coaches.removeUserAccessConfirm'))) {
       unassignMutation.mutate({ coachId: selectedCoach.id, userIds: [userId] });
     }
   };
@@ -203,7 +205,7 @@ export default function SystemCoachesTab() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Create Coach
+            {t('coaches.createCoach')}
           </Button>
         </div>
 
@@ -219,11 +221,11 @@ export default function SystemCoachesTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-white mb-2">No System Coaches</h3>
+            <h3 className="text-lg font-medium text-white mb-2">{t('coaches.noSystemCoachesYet')}</h3>
             <p className="text-zinc-400 mb-4">
-              Create your first system coach to provide AI coaching personas to your users.
+              {t('coaches.createFirstSystemCoach')}
             </p>
-            <Button onClick={() => setIsCreating(true)}>Create Your First Coach</Button>
+            <Button onClick={() => setIsCreating(true)}>{t('coaches.createYourFirstSystemCoach')}</Button>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -241,7 +243,7 @@ export default function SystemCoachesTab() {
                       'inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full border',
                       getCategoryColorClass(coach.category)
                     )}>
-                      {coach.category}
+                      {t(`coaches.category.${coach.category.toLowerCase()}`)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-zinc-500">
@@ -258,14 +260,14 @@ export default function SystemCoachesTab() {
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
-                    {coach.token_count.toLocaleString()} tokens
+                    {t('coaches.tokens', { count: coach.token_count })}
                   </span>
                   <span className="flex items-center gap-1">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
-                    {coach.use_count} uses
+                    {t('coaches.uses', { count: coach.use_count })}
                   </span>
                 </div>
                 {coach.tags.length > 0 && (
@@ -306,26 +308,26 @@ export default function SystemCoachesTab() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Back to Coaches
+          {t('coaches.backToCoaches')}
         </button>
 
         <Card variant="dark">
           <h2 className="text-xl font-semibold text-white mb-6">
-            {isCreating ? 'Create System Coach' : `Edit "${selectedCoach?.title}"`}
+            {isCreating ? t('coaches.createSystemCoach') : t('coaches.editSystemCoach', { title: selectedCoach?.title })}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Title */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Title <span className="text-pierre-red-400">*</span>
+                {t('coaches.titleLabel')} <span className="text-pierre-red-400">*</span>
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="input-dark"
-                placeholder="e.g., Marathon Training Coach"
+                placeholder={t('coaches.titlePlaceholder')}
                 required
               />
             </div>
@@ -333,32 +335,32 @@ export default function SystemCoachesTab() {
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Description
+                {t('coaches.descriptionLabel')}
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="input-dark"
                 rows={2}
-                placeholder="Brief description of the coach's specialty..."
+                placeholder={t('coaches.descriptionPlaceholder')}
               />
             </div>
 
             {/* System Prompt */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                System Prompt <span className="text-pierre-red-400">*</span>
+                {t('coaches.systemPromptLabel')} <span className="text-pierre-red-400">*</span>
               </label>
               <textarea
                 value={formData.system_prompt}
                 onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
                 className="input-dark font-mono text-sm"
                 rows={8}
-                placeholder="You are a professional marathon coach with expertise in..."
+                placeholder={t('coaches.systemPromptPlaceholder')}
                 required
               />
               <p className="mt-1 text-xs text-zinc-500">
-                Estimated tokens: {estimateTokenCount(formData.system_prompt).toLocaleString()}
+                {t('coaches.estimatedTokens')} {estimateTokenCount(formData.system_prompt).toLocaleString()}
               </p>
             </div>
 
@@ -366,7 +368,7 @@ export default function SystemCoachesTab() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1">
-                  Category
+                  {t('coaches.categoryLabel')}
                 </label>
                 <select
                   value={formData.category}
@@ -374,13 +376,13 @@ export default function SystemCoachesTab() {
                   className="select-dark"
                 >
                   {COACH_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat}>{t(`coaches.category.${cat.toLowerCase()}`)}</option>
                   ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1">
-                  Visibility
+                  {t('coaches.visibility')}
                 </label>
                 <select
                   value={formData.visibility}
@@ -388,8 +390,8 @@ export default function SystemCoachesTab() {
                   className="select-dark"
                   disabled={isEditing}
                 >
-                  <option value="tenant">Tenant Only</option>
-                  <option value="global">Global (All Tenants)</option>
+                  <option value="tenant">{t('coaches.tenantOnly')}</option>
+                  <option value="global">{t('coaches.globalAllTenants')}</option>
                 </select>
               </div>
             </div>
@@ -397,14 +399,14 @@ export default function SystemCoachesTab() {
             {/* Tags */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Tags
+                {t('coaches.tagsLabel')}
               </label>
               <input
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 className="input-dark"
-                placeholder="marathon, endurance, beginner (comma-separated)"
+                placeholder={t('coaches.tagsPlaceholder')}
               />
             </div>
 
@@ -417,10 +419,10 @@ export default function SystemCoachesTab() {
                 {createMutation.isPending || updateMutation.isPending ? (
                   <span className="flex items-center gap-2">
                     <div className="pierre-spinner w-4 h-4"></div>
-                    Saving...
+                    {t('coaches.saving')}
                   </span>
                 ) : (
-                  isCreating ? 'Create Coach' : 'Save Changes'
+                  isCreating ? t('coaches.createCoach') : t('coaches.saveChanges')
                 )}
               </Button>
               <Button
@@ -432,7 +434,7 @@ export default function SystemCoachesTab() {
                   setFormData(defaultFormData);
                 }}
               >
-                Cancel
+                {t('coaches.cancel')}
               </Button>
             </div>
           </form>
@@ -456,7 +458,7 @@ export default function SystemCoachesTab() {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Back to Coaches
+        {t('coaches.backToCoaches')}
       </button>
 
       {/* Coach Details Card */}
@@ -469,7 +471,7 @@ export default function SystemCoachesTab() {
                 'px-2 py-1 text-xs font-medium rounded-full border',
                 getCategoryColorClass(selectedCoach.category)
               )}>
-                {selectedCoach.category}
+                {t(`coaches.category.${selectedCoach.category.toLowerCase()}`)}
               </span>
             </div>
             {selectedCoach.description && (
@@ -484,14 +486,14 @@ export default function SystemCoachesTab() {
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              Edit
+              {t('coaches.edit')}
             </Button>
             <Button
               variant="danger"
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              {deleteMutation.isPending ? t('coaches.deleting') : t('coaches.delete')}
             </Button>
           </div>
         </div>
@@ -500,27 +502,27 @@ export default function SystemCoachesTab() {
         <div className="grid grid-cols-4 gap-4 mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-violet-light">{selectedCoach.token_count.toLocaleString()}</div>
-            <div className="text-xs text-zinc-500">Tokens</div>
+            <div className="text-xs text-zinc-500">{t('coaches.tokensLabel')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-activity">{selectedCoach.use_count}</div>
-            <div className="text-xs text-zinc-500">Uses</div>
+            <div className="text-xs text-zinc-500">{t('coaches.usesLabel')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-nutrition">{assignments.length}</div>
-            <div className="text-xs text-zinc-500">Assigned Users</div>
+            <div className="text-xs text-zinc-500">{t('coaches.assignedUsersLabel')}</div>
           </div>
           <div className="text-center">
             <div className="text-sm font-medium text-zinc-300">
-              {selectedCoach.visibility === 'global' ? 'Global' : 'Tenant'}
+              {selectedCoach.visibility === 'global' ? t('coaches.global') : t('coaches.tenant')}
             </div>
-            <div className="text-xs text-zinc-500">Visibility</div>
+            <div className="text-xs text-zinc-500">{t('coaches.visibilityLabel')}</div>
           </div>
         </div>
 
         {/* System Prompt */}
         <div className="mb-6">
-          <h3 className="text-sm font-medium text-zinc-300 mb-2">System Prompt</h3>
+          <h3 className="text-sm font-medium text-zinc-300 mb-2">{t('coaches.systemPrompt')}</h3>
           <div className="p-4 bg-white/5 rounded-lg font-mono text-sm text-zinc-300 whitespace-pre-wrap max-h-48 overflow-y-auto border border-white/10 scrollbar-dark">
             {selectedCoach.system_prompt}
           </div>
@@ -529,7 +531,7 @@ export default function SystemCoachesTab() {
         {/* Tags */}
         {selectedCoach.tags.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-sm font-medium text-zinc-300 mb-2">Tags</h3>
+            <h3 className="text-sm font-medium text-zinc-300 mb-2">{t('coaches.tags')}</h3>
             <div className="flex flex-wrap gap-2">
               {selectedCoach.tags.map((tag) => (
                 <span key={tag} className="px-3 py-1 text-sm bg-white/10 text-zinc-300 rounded-full">
@@ -543,11 +545,11 @@ export default function SystemCoachesTab() {
         {/* Timestamps */}
         <div className="grid grid-cols-2 gap-4 text-sm text-zinc-500 pt-4 border-t border-white/10">
           <div>
-            <span className="font-medium text-zinc-400">Created:</span>{' '}
+            <span className="font-medium text-zinc-400">{t('coaches.created')} :</span>{' '}
             {new Date(selectedCoach.created_at).toLocaleString()}
           </div>
           <div>
-            <span className="font-medium text-zinc-400">Last Updated:</span>{' '}
+            <span className="font-medium text-zinc-400">{t('coaches.lastUpdated')} :</span>{' '}
             {new Date(selectedCoach.updated_at).toLocaleString()}
           </div>
         </div>
@@ -556,18 +558,18 @@ export default function SystemCoachesTab() {
       {/* Assignments Card */}
       <Card variant="dark">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">User Assignments</h3>
+          <h3 className="text-lg font-semibold text-white">{t('coaches.userAssignmentsTitle')}</h3>
           <Button onClick={() => setShowAssignModal(true)}>
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
-            Assign Users
+            {t('coaches.assignUsers')}
           </Button>
         </div>
 
         {assignments.length === 0 ? (
           <p className="text-zinc-500 text-center py-8">
-            No users assigned to this coach yet. Click "Assign Users" to add access.
+            {t('coaches.noUsersAssigned')}
           </p>
         ) : (
           <div className="divide-y divide-white/10">
@@ -578,14 +580,14 @@ export default function SystemCoachesTab() {
                     {assignment.user_email || assignment.user_id}
                   </div>
                   <div className="text-xs text-zinc-500">
-                    Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
-                    {assignment.assigned_by && ` by ${assignment.assigned_by}`}
+                    {t('coaches.assigned')} {new Date(assignment.assigned_at).toLocaleDateString()}
+                    {assignment.assigned_by && ` ${t('coaches.assignedBy', { user: assignment.assigned_by })}`}
                   </div>
                 </div>
                 <button
                   onClick={() => handleUnassign(assignment.user_id)}
                   className="text-pierre-red-400 hover:text-pierre-red-300 transition-colors p-2"
-                  title="Remove assignment"
+                  title={t('coaches.removeAssignment')}
                   disabled={unassignMutation.isPending}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -603,15 +605,15 @@ export default function SystemCoachesTab() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-pierre-slate rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col border border-white/10">
             <div className="p-6 border-b border-white/10">
-              <h3 className="text-lg font-semibold text-white">Assign Users to Coach</h3>
+              <h3 className="text-lg font-semibold text-white">{t('coaches.assignUsersToCoach')}</h3>
               <p className="text-sm text-zinc-400 mt-1">
-                Select users to give access to "{selectedCoach.title}"
+                {t('coaches.selectUsersToAccess', { title: selectedCoach.title })}
               </p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 scrollbar-dark">
               {users.length === 0 ? (
-                <p className="text-center text-zinc-500">Loading users...</p>
+                <p className="text-center text-zinc-500">{t('coaches.loadingUsers')}</p>
               ) : (
                 <div className="space-y-2">
                   {users
@@ -658,7 +660,7 @@ export default function SystemCoachesTab() {
 
             <div className="p-6 border-t border-white/10 flex items-center justify-between">
               <span className="text-sm text-zinc-400">
-                {selectedUserIds.length} user{selectedUserIds.length !== 1 ? 's' : ''} selected
+                {t('coaches.usersSelected', { count: selectedUserIds.length })}
               </span>
               <div className="flex items-center gap-3">
                 <Button
@@ -668,13 +670,13 @@ export default function SystemCoachesTab() {
                     setSelectedUserIds([]);
                   }}
                 >
-                  Cancel
+                  {t('coaches.cancel')}
                 </Button>
                 <Button
                   onClick={handleAssign}
                   disabled={selectedUserIds.length === 0 || assignMutation.isPending}
                 >
-                  {assignMutation.isPending ? 'Assigning...' : 'Assign Selected'}
+                  {assignMutation.isPending ? t('coaches.assigning') : t('coaches.assignSelected')}
                 </Button>
               </div>
             </div>

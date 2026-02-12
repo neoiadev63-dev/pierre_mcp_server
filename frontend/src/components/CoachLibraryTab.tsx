@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { BookOpen } from 'lucide-react';
 import { coachesApi } from '../services/api';
 import type { Coach } from '../types/api';
@@ -17,11 +18,6 @@ const COACH_CATEGORIES = ['Training', 'Nutrition', 'Recovery', 'Recipes', 'Mobil
 
 // Source filter options (user-created vs system coaches)
 type CoachSource = 'all' | 'user' | 'system';
-const SOURCE_FILTERS: Array<{ key: CoachSource; label: string }> = [
-  { key: 'all', label: 'All Sources' },
-  { key: 'user', label: 'My Coaches' },
-  { key: 'system', label: 'System' },
-];
 
 // Category emoji icons matching mobile
 const CATEGORY_EMOJIS: Record<string, string> = {
@@ -78,6 +74,7 @@ interface CoachLibraryTabProps {
 
 export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -91,11 +88,12 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [renameValue, setRenameValue] = useState('');
 
-  // Fetch all coaches (including hidden) for client-side filtering
+  // Fetch all coaches (including hidden and system) for client-side filtering
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
-    queryKey: ['user-coaches', 'include-hidden'],
+    queryKey: ['user-coaches', 'include-hidden', 'include-system'],
     queryFn: () => coachesApi.list({
       include_hidden: true,
+      include_system: true,
     }),
   });
 
@@ -206,7 +204,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
   };
 
   const handleDelete = () => {
-    if (selectedCoach && confirm(`Delete coach "${selectedCoach.title}"? This cannot be undone.`)) {
+    if (selectedCoach && confirm(t('coaches.deleteConfirm', { title: selectedCoach.title }))) {
       deleteMutation.mutate(selectedCoach.id);
     }
   };
@@ -226,7 +224,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
 
   const handleForkCoach = (coach: Coach) => {
     if (!coach.is_system) return;
-    if (confirm(`Create your own copy of "${coach.title}"? You can customize the forked coach however you like.`)) {
+    if (confirm(t('coaches.forkConfirm', { title: coach.title }))) {
       forkMutation.mutate(coach.id);
     }
   };
@@ -308,15 +306,15 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
         <TabHeader
           icon={<BookOpen className="w-5 h-5" />}
           gradient="from-pierre-cyan to-pierre-blue-600"
-          description="Create custom AI personas to get specialized fitness coaching."
+          description={t('coaches.description')}
           actions={
             <>
               {onBack && (
                 <button
                   onClick={onBack}
                   className="p-2 rounded-lg text-zinc-400 hover:text-pierre-violet hover:bg-white/5 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                  title="Back"
-                  aria-label="Back"
+                  title={t('coaches.back')}
+                  aria-label={t('coaches.back')}
                 >
                   <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -331,8 +329,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                     ? 'bg-pierre-violet/20 text-pierre-violet-light'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
                 )}
-                title={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
-                aria-label={showHidden ? 'Hide hidden coaches' : 'Show hidden coaches'}
+                title={showHidden ? t('coaches.hideHidden') : t('coaches.showHidden')}
+                aria-label={showHidden ? t('coaches.hideHidden') : t('coaches.showHidden')}
               >
                 <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   {showHidden ? (
@@ -348,8 +346,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   setIsCreating(true);
                 }}
                 className="p-2 rounded-lg text-white bg-pierre-violet hover:bg-pierre-violet-dark transition-colors shadow-glow-sm hover:shadow-glow min-w-[44px] min-h-[44px] flex items-center justify-center"
-                title="Create Coach"
-                aria-label="Create Coach"
+                title={t('coaches.createCoach')}
+                aria-label={t('coaches.createCoach')}
               >
                 <svg className="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -373,8 +371,8 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             </svg>
             <input
               type="search"
-              placeholder="Search coaches..."
-              aria-label="Search coaches"
+              placeholder={t('coaches.searchPlaceholder')}
+              aria-label={t('coaches.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-pierre-violet/30 focus:border-pierre-violet transition-colors"
@@ -382,7 +380,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
+                aria-label={t('coaches.clearSearch')}
                 className="absolute right-1 top-1/2 transform -translate-y-1/2 text-zinc-500 hover:text-zinc-300 min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -405,7 +403,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-300'
               )}
             >
-              All
+              {t('coaches.all')}
             </button>
             {COACH_CATEGORIES.map((cat) => (
               <button
@@ -418,7 +416,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                     : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-300'
                 )}
               >
-                {cat}
+                {t(`coaches.category.${cat.toLowerCase()}`)}
               </button>
             ))}
             {/* Favorites toggle - inline with categories */}
@@ -444,27 +442,46 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
                 />
               </svg>
-              Favorites
+              {t('coaches.favorites')}
             </button>
           </div>
         </div>
 
         {/* Source filter (All Sources / My Coaches / System) */}
         <div className="px-6 py-2 bg-white/5 border-b border-white/10 flex justify-center items-center gap-3">
-          {SOURCE_FILTERS.map((filter) => (
-            <button
-              key={filter.key}
-              onClick={() => setSelectedSource(filter.key)}
-              className={clsx(
-                'px-3 py-1 text-sm font-medium rounded transition-colors min-h-[44px] flex items-center',
-                selectedSource === filter.key
-                  ? 'bg-pierre-violet/20 text-pierre-violet-light font-medium'
-                  : 'text-zinc-400 hover:text-pierre-violet-light'
-              )}
-            >
-              {filter.label}
-            </button>
-          ))}
+          <button
+            onClick={() => setSelectedSource('all')}
+            className={clsx(
+              'px-3 py-1 text-sm font-medium rounded transition-colors min-h-[44px] flex items-center',
+              selectedSource === 'all'
+                ? 'bg-pierre-violet/20 text-pierre-violet-light font-medium'
+                : 'text-zinc-400 hover:text-pierre-violet-light'
+            )}
+          >
+            {t('coaches.allSources')}
+          </button>
+          <button
+            onClick={() => setSelectedSource('user')}
+            className={clsx(
+              'px-3 py-1 text-sm font-medium rounded transition-colors min-h-[44px] flex items-center',
+              selectedSource === 'user'
+                ? 'bg-pierre-violet/20 text-pierre-violet-light font-medium'
+                : 'text-zinc-400 hover:text-pierre-violet-light'
+            )}
+          >
+            {t('coaches.myCoachesFilter')}
+          </button>
+          <button
+            onClick={() => setSelectedSource('system')}
+            className={clsx(
+              'px-3 py-1 text-sm font-medium rounded transition-colors min-h-[44px] flex items-center',
+              selectedSource === 'system'
+                ? 'bg-pierre-violet/20 text-pierre-violet-light font-medium'
+                : 'text-zinc-400 hover:text-pierre-violet-light'
+            )}
+          >
+            {t('coaches.system')}
+          </button>
         </div>
 
         {/* Coaches Grid - scrollable content area */}
@@ -481,21 +498,21 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               </svg>
             </div>
             <h3 className="text-lg font-medium text-white mb-2">
-              {favoritesOnly ? 'No Favorite Coaches' :
-               selectedSource === 'user' ? 'No User-Created Coaches' :
-               selectedSource === 'system' ? 'No System Coaches' :
-               categoryFilter ? `No ${categoryFilter} Coaches` :
-               'No Coaches Yet'}
+              {favoritesOnly ? t('coaches.noFavoriteCoaches') :
+               selectedSource === 'user' ? t('coaches.noUserCoaches') :
+               selectedSource === 'system' ? t('coaches.noSystemCoaches') :
+               categoryFilter ? t('coaches.noCategoryCoaches', { category: t(`coaches.category.${categoryFilter.toLowerCase()}`) }) :
+               t('coaches.noCoachesYet')}
             </h3>
             <p className="text-zinc-400 mb-4">
               {favoritesOnly
-                ? 'Star some coaches to see them here.'
+                ? t('coaches.starToSeeHere')
                 : (coachesData?.coaches || []).length === 0
-                ? 'Create your first coach to customize how Pierre helps you.'
-                : 'Try adjusting your filters.'}
+                ? t('coaches.createFirstCoach')
+                : t('coaches.tryAdjustFilters')}
             </p>
             {!favoritesOnly && (coachesData?.coaches || []).length === 0 && (
-              <Button onClick={() => setIsCreating(true)}>Create Your First Coach</Button>
+              <Button onClick={() => setIsCreating(true)}>{t('coaches.createYourFirstCoach')}</Button>
             )}
           </Card>
         ) : (
@@ -532,11 +549,11 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                           'px-2 py-0.5 text-xs font-medium rounded-full border flex-shrink-0',
                           CATEGORY_COLORS[coach.category] || CATEGORY_COLORS.Custom
                         )}>
-                          {coach.category}
+                          {t(`coaches.category.${coach.category.toLowerCase()}`)}
                         </span>
                         {coach.is_system && (
                           <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-zinc-700/50 text-zinc-400 flex-shrink-0">
-                            System
+                            {t('coaches.system')}
                           </span>
                         )}
                       </div>
@@ -560,7 +577,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                         <button
                           onClick={(e) => handleToggleFavorite(e, coach.id)}
                           className="ml-2 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-zinc-500 hover:text-pierre-violet transition-colors"
-                          title={coach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                          title={coach.is_favorite ? t('coaches.removeFromFavorites') : t('coaches.addToFavorites')}
                         >
                           <svg className="w-4 h-4" aria-hidden="true" fill={coach.is_favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
@@ -588,7 +605,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                         boxShadow: '0 0 12px rgba(139, 92, 246, 0.4)',
                       }}
                     >
-                      Chat
+                      {t('coaches.chat')}
                     </button>
                   </div>
 
@@ -607,7 +624,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                           <svg className="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                           </svg>
-                          Fork
+                          {t('coaches.fork')}
                         </button>
                       )}
                       {/* Hide/Show button */}
@@ -630,7 +647,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                             )}
                           </svg>
-                          {isHidden ? 'Show' : 'Hide'}
+                          {isHidden ? t('coaches.show') : t('coaches.hide')}
                         </button>
                       )}
                       {/* Hidden indicator for non-system coaches */}
@@ -639,7 +656,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                           <svg className="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                           </svg>
-                          Hidden
+                          {t('coaches.hidden')}
                         </span>
                       )}
                     </div>
@@ -678,7 +695,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
-                {actionMenuCoach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                {actionMenuCoach.is_favorite ? t('coaches.removeFromFavorites') : t('coaches.addToFavorites')}
               </button>
 
               {/* Hide/Show for system coaches */}
@@ -700,7 +717,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     )}
                   </svg>
-                  {actionMenuCoach.is_hidden ? 'Show coach' : 'Hide coach'}
+                  {actionMenuCoach.is_hidden ? t('coaches.showCoach') : t('coaches.hideCoach')}
                 </button>
               )}
 
@@ -713,7 +730,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                  Fork (create my copy)
+                  {t('coaches.forkCopy')}
                 </button>
               )}
 
@@ -726,7 +743,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  Rename
+                  {t('coaches.rename')}
                 </button>
               )}
 
@@ -734,7 +751,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               {!actionMenuCoach.is_system && (
                 <button
                   onClick={() => {
-                    if (confirm(`Delete coach "${actionMenuCoach.title}"? This cannot be undone.`)) {
+                    if (confirm(t('coaches.deleteConfirm', { title: actionMenuCoach.title }))) {
                       deleteMutation.mutate(actionMenuCoach.id);
                       closeActionMenu();
                     }
@@ -744,7 +761,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Delete
+                  {t('coaches.delete')}
                 </button>
               )}
             </div>
@@ -764,13 +781,13 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               className="bg-[#1E1B2D] rounded-xl p-6 w-full max-w-md shadow-xl border border-white/10"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-white mb-4">Rename Coach</h3>
+              <h3 className="text-lg font-semibold text-white mb-4">{t('coaches.renameCoach')}</h3>
               <input
                 type="text"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent mb-4"
-                placeholder="Enter new name"
+                placeholder={t('coaches.enterNewName')}
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -786,9 +803,9 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                     setActionMenuCoach(null);
                   }}
                 >
-                  Cancel
+                  {t('coaches.cancel')}
                 </Button>
-                <Button onClick={handleRenameSubmit}>Save</Button>
+                <Button onClick={handleRenameSubmit}>{t('coaches.save')}</Button>
               </div>
             </div>
           </div>
@@ -814,14 +831,14 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 setSelectedCoach(null);
               }}
               className="p-1.5 rounded-lg text-zinc-500 hover:text-pierre-violet hover:bg-white/5 transition-colors"
-              title="Back to coaches"
+              title={t('coaches.backToCoaches')}
             >
               <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
             <h2 className="text-xl font-semibold text-white">
-              {isCreating ? 'Create Coach' : `Edit "${selectedCoach?.title}"`}
+              {isCreating ? t('coaches.createCoach') : t('coaches.editCoach', { title: selectedCoach?.title })}
             </h2>
           </div>
 
@@ -829,14 +846,14 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             {/* Title */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Title <span className="text-pierre-red-500">*</span>
+                {t('coaches.titleLabel')} <span className="text-pierre-red-500">{t('coaches.required')}</span>
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
-                placeholder="e.g., Marathon Training Coach"
+                placeholder={t('coaches.titlePlaceholder')}
                 maxLength={100}
                 required
               />
@@ -845,7 +862,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             {/* Category */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Category
+                {t('coaches.categoryLabel')}
               </label>
               <select
                 value={formData.category}
@@ -853,7 +870,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
               >
                 {COACH_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat} className="bg-pierre-slate">{cat}</option>
+                  <option key={cat} value={cat} className="bg-pierre-slate">{t(`coaches.category.${cat.toLowerCase()}`)}</option>
                 ))}
               </select>
             </div>
@@ -861,7 +878,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Description
+                {t('coaches.descriptionLabel')}
               </label>
               <textarea
                 value={formData.description}
@@ -869,17 +886,17 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
                 rows={2}
                 maxLength={500}
-                placeholder="Brief description of the coach's specialty..."
+                placeholder={t('coaches.descriptionPlaceholder')}
               />
               <p className="mt-1 text-xs text-zinc-500 text-right">
-                {formData.description.length}/500
+                {t('coaches.characterCount', { current: formData.description.length, max: 500 })}
               </p>
             </div>
 
             {/* System Prompt */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                System Prompt <span className="text-pierre-red-500">*</span>
+                {t('coaches.systemPromptLabel')} <span className="text-pierre-red-500">{t('coaches.required')}</span>
               </label>
               <textarea
                 value={formData.system_prompt}
@@ -887,28 +904,28 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent font-mono text-sm"
                 rows={8}
                 maxLength={4000}
-                placeholder="You are Pierre, an expert coach with deep knowledge of..."
+                placeholder={t('coaches.systemPromptPlaceholder')}
                 required
               />
               <div className="mt-1 flex items-center justify-between text-xs text-zinc-500">
                 <span>
-                  ~{tokenCount.toLocaleString()} tokens ({getContextPercentage(tokenCount)}% context)
+                  {t('coaches.tokensCount', { count: tokenCount, percent: getContextPercentage(tokenCount) })}
                 </span>
-                <span>{formData.system_prompt.length}/4000</span>
+                <span>{t('coaches.characterCount', { current: formData.system_prompt.length, max: 4000 })}</span>
               </div>
             </div>
 
             {/* Tags */}
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Tags
+                {t('coaches.tagsLabel')}
               </label>
               <input
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:ring-2 focus:ring-pierre-violet focus:border-transparent"
-                placeholder="marathon, endurance, beginner (comma-separated)"
+                placeholder={t('coaches.tagsPlaceholder')}
               />
             </div>
 
@@ -921,10 +938,10 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                 {createMutation.isPending || updateMutation.isPending ? (
                   <span className="flex items-center gap-2">
                     <div className="pierre-spinner w-4 h-4"></div>
-                    Saving...
+                    {t('coaches.saving')}
                   </span>
                 ) : (
-                  isCreating ? 'Create Coach' : 'Save Changes'
+                  isCreating ? t('coaches.createCoach') : t('coaches.saveChanges')
                 )}
               </Button>
               <Button
@@ -937,7 +954,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
                   setSelectedCoach(null);
                 }}
               >
-                Cancel
+                {t('coaches.cancel')}
               </Button>
             </div>
           </form>
@@ -961,7 +978,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
             <button
               onClick={() => setSelectedCoach(null)}
               className="p-1.5 rounded-lg text-zinc-500 hover:text-pierre-violet hover:bg-white/5 transition-colors"
-              title="Back to coaches"
+              title={t('coaches.backToCoaches')}
             >
               <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -972,13 +989,13 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               'px-2 py-1 text-xs font-medium rounded-full border',
               CATEGORY_COLORS[selectedCoach.category] || CATEGORY_COLORS.Custom
             )}>
-              {selectedCoach.category}
+              {t(`coaches.category.${selectedCoach.category.toLowerCase()}`)}
             </span>
             <button
               onClick={(e) => handleToggleFavorite(e, selectedCoach.id)}
               className="text-zinc-500 hover:text-pierre-yellow-500 transition-colors"
-              title={selectedCoach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
-              aria-label={selectedCoach.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+              title={selectedCoach.is_favorite ? t('coaches.removeFromFavorites') : t('coaches.addToFavorites')}
+              aria-label={selectedCoach.is_favorite ? t('coaches.removeFromFavorites') : t('coaches.addToFavorites')}
             >
               <svg
                 className={clsx('w-6 h-6', selectedCoach.is_favorite ? 'fill-pierre-yellow-400 text-pierre-yellow-400' : 'fill-none')}
@@ -1003,14 +1020,14 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               <svg className="w-4 h-4 mr-2" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              Edit
+              {t('coaches.edit')}
             </Button>
             <Button
               variant="danger"
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              {deleteMutation.isPending ? t('coaches.deleting') : t('coaches.delete')}
             </Button>
           </div>
         </div>
@@ -1027,26 +1044,26 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
               ~{selectedCoach.token_count.toLocaleString()}
             </div>
             <div className="text-xs text-zinc-500">
-              Tokens ({getContextPercentage(selectedCoach.token_count)}% context)
+              {t('coaches.tokensCount', { count: selectedCoach.token_count, percent: getContextPercentage(selectedCoach.token_count) })}
             </div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-activity">{selectedCoach.use_count}</div>
-            <div className="text-xs text-zinc-500">Uses</div>
+            <div className="text-xs text-zinc-500">{t('coaches.uses', { count: selectedCoach.use_count })}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pierre-nutrition">
               {selectedCoach.is_favorite ? '★' : '☆'}
             </div>
             <div className="text-xs text-zinc-500">
-              {selectedCoach.is_favorite ? 'Favorite' : 'Not Favorite'}
+              {selectedCoach.is_favorite ? t('coaches.favorite') : t('coaches.notFavorite')}
             </div>
           </div>
         </div>
 
         {/* System Prompt */}
         <div className="mb-6">
-          <h3 className="text-sm font-medium text-zinc-300 mb-2">System Prompt</h3>
+          <h3 className="text-sm font-medium text-zinc-300 mb-2">{t('coaches.systemPrompt')}</h3>
           <div className="p-4 bg-white/5 rounded-lg font-mono text-sm text-zinc-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
             {selectedCoach.system_prompt}
           </div>
@@ -1055,7 +1072,7 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
         {/* Tags */}
         {selectedCoach.tags.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-sm font-medium text-zinc-300 mb-2">Tags</h3>
+            <h3 className="text-sm font-medium text-zinc-300 mb-2">{t('coaches.tags')}</h3>
             <div className="flex flex-wrap gap-2">
               {selectedCoach.tags.map((tag) => (
                 <span key={tag} className="px-3 py-1 text-sm bg-white/5 text-zinc-300 rounded-full">
@@ -1069,11 +1086,11 @@ export default function CoachLibraryTab({ onBack }: CoachLibraryTabProps) {
         {/* Timestamps */}
         <div className="grid grid-cols-2 gap-4 text-sm text-zinc-500 pt-4 border-t border-white/10">
           <div>
-            <span className="font-medium">Created:</span>{' '}
+            <span className="font-medium">{t('coaches.created')}:</span>{' '}
             {new Date(selectedCoach.created_at).toLocaleString()}
           </div>
           <div>
-            <span className="font-medium">Last Updated:</span>{' '}
+            <span className="font-medium">{t('coaches.lastUpdated')}:</span>{' '}
             {new Date(selectedCoach.updated_at).toLocaleString()}
           </div>
         </div>

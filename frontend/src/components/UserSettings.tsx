@@ -314,10 +314,15 @@ export default function UserSettings() {
 
   // Connect to a fitness provider via OAuth popup
   const handleConnectProvider = async (providerId: string) => {
+    if (!user?.user_id) {
+      console.error('Cannot connect provider: user not authenticated');
+      return;
+    }
+
     try {
       setConnectingProvider(providerId);
       setProviderMessage(null);
-      const authUrl = await apiService.getOAuthAuthorizeUrlForProvider(providerId);
+      const authUrl = await apiService.getOAuthAuthorizeUrlForProvider(providerId, user.user_id);
 
       // Open OAuth in a popup window with noopener to prevent tabnabbing
       const popup = window.open(authUrl, `oauth_${providerId}`, 'width=600,height=700,left=200,top=100,noopener,noreferrer');

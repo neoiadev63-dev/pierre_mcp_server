@@ -64,7 +64,13 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       ws.onopen = () => {
         isConnectingRef.current = false;
         setIsConnected(true);
-        
+
+        // Clear reconnect timeout when connection is successfully established
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+
         // Authenticate immediately
         ws.send(JSON.stringify({
           type: 'auth',
@@ -113,10 +119,8 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         console.error('WebSocket Provider: Error:', error);
         isConnectingRef.current = false;
         setIsConnected(false);
-        
-        if (wsRef.current === ws) {
-          wsRef.current = null;
-        }
+        // Note: onclose will be called immediately after onerror,
+        // so we don't clear wsRef here to avoid race conditions
       };
 
     } catch (error) {

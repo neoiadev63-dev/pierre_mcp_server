@@ -5,6 +5,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { providersApi, oauthApi } from '../services/api';
 import type { ProviderStatus } from '../services/api/oauth';
 import { Card, Badge } from './ui';
@@ -44,18 +45,18 @@ const DEFAULT_STYLE = {
 };
 
 // Get description based on capabilities
-const getProviderDescription = (provider: ProviderStatus): string => {
+const getProviderDescription = (provider: ProviderStatus, t: (key: string) => string): string => {
   const caps = provider.capabilities;
   if (caps.includes('activities') && caps.includes('sleep')) {
-    return 'Activities, sleep & recovery';
+    return t('providers.activitiesSleepRecovery');
   }
   if (caps.includes('activities')) {
-    return 'Activities & workouts';
+    return t('providers.activitiesWorkouts');
   }
   if (caps.includes('sleep')) {
-    return 'Sleep tracking';
+    return t('providers.sleepTracking');
   }
-  return 'Fitness data';
+  return t('providers.fitnessData');
 };
 
 // SVG icons for each provider - clean and professional
@@ -130,6 +131,8 @@ export default function ProviderConnectionCards({
   onSkip,
   isSkipPending
 }: ProviderConnectionCardsProps) {
+  const { t } = useTranslation();
+
   // Fetch providers from server (includes OAuth and non-OAuth providers)
   const { data: providersData, isLoading } = useQuery({
     queryKey: ['providers-status'],
@@ -205,10 +208,10 @@ export default function ProviderConnectionCards({
               className="text-left focus:outline-none focus:ring-2 focus:ring-pierre-violet/50 rounded-xl disabled:cursor-default group"
               aria-label={
                 provider.connected
-                  ? `${provider.display_name} is connected`
+                  ? t('providers.isConnected', { provider: provider.display_name })
                   : isNonOAuth
-                    ? `${provider.display_name} - ${getProviderDescription(provider)}`
-                    : `Connect to ${provider.display_name}`
+                    ? t('providers.providerInfo', { provider: provider.display_name, description: getProviderDescription(provider, t) })
+                    : t('providers.connectTo', { provider: provider.display_name })
               }
             >
               <Card
@@ -238,16 +241,16 @@ export default function ProviderConnectionCards({
                       <span className="font-semibold text-white text-sm">{provider.display_name}</span>
                       {provider.connected && (
                         <Badge variant="success">
-                          Connected
+                          {t('providers.connected')}
                         </Badge>
                       )}
                       {isNonOAuth && !provider.connected && (
                         <Badge variant="secondary">
-                          Demo
+                          {t('providers.demo')}
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-400 mt-0.5">{getProviderDescription(provider)}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">{getProviderDescription(provider, t)}</p>
                   </div>
                   {!provider.connected && provider.requires_oauth && (
                     <svg
@@ -272,7 +275,7 @@ export default function ProviderConnectionCards({
             onClick={onSkip}
             disabled={isSkipPending}
             className="text-left focus:outline-none focus:ring-2 focus:ring-pierre-violet/50 rounded-xl group"
-            aria-label="Skip and start chatting"
+            aria-label={t('providers.skipAndStartChatting')}
           >
             <Card
               variant="dark"
@@ -290,9 +293,9 @@ export default function ProviderConnectionCards({
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-semibold text-white text-sm">
-                    {isSkipPending ? 'Starting...' : 'Start chatting'}
+                    {isSkipPending ? t('providers.starting') : t('providers.startChatting')}
                   </span>
-                  <p className="text-xs text-zinc-400 mt-0.5">Connect providers later</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">{t('providers.connectProvidersLater')}</p>
                 </div>
                 <svg
                   className="w-4 h-4 text-zinc-500 group-hover:text-pierre-violet transition-colors"
