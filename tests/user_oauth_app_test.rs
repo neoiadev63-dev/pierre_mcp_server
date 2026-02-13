@@ -51,7 +51,7 @@ async fn setup_test_database() -> Result<Database> {
 }
 
 /// Create a test user
-async fn create_test_user(database: &Database, email: &str, tenant_id: Uuid) -> Result<Uuid> {
+async fn create_test_user(database: &Database, email: &str, tenant_id: TenantId) -> Result<Uuid> {
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
@@ -112,7 +112,7 @@ fn create_test_oauth_config() -> OAuthConfig {
 #[serial]
 async fn test_store_and_get_user_oauth_app() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Store user OAuth app
@@ -146,7 +146,7 @@ async fn test_store_and_get_user_oauth_app() -> Result<()> {
 #[serial]
 async fn test_list_user_oauth_apps() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Store multiple OAuth apps
@@ -195,7 +195,7 @@ async fn test_list_user_oauth_apps() -> Result<()> {
 #[serial]
 async fn test_remove_user_oauth_app() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Store and then remove
@@ -228,7 +228,7 @@ async fn test_remove_user_oauth_app() -> Result<()> {
 #[serial]
 async fn test_user_oauth_app_isolation() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let user_a = create_test_user(&database, "user_a@example.com", tenant_id).await?;
     let user_b = create_test_user(&database, "user_b@example.com", tenant_id).await?;
@@ -277,7 +277,7 @@ async fn test_user_oauth_app_isolation() -> Result<()> {
 #[serial]
 async fn test_all_supported_providers() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let providers = ["strava", "fitbit", "garmin", "whoop", "terra"];
@@ -318,7 +318,7 @@ async fn test_all_supported_providers() -> Result<()> {
 #[serial]
 async fn test_user_credentials_priority_over_server() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Set up server-level credentials
@@ -338,12 +338,7 @@ async fn test_user_credentials_priority_over_server() -> Result<()> {
 
     // Get credentials with user_id - should return user-specific
     let credentials = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
 
     assert_eq!(
@@ -359,7 +354,7 @@ async fn test_user_credentials_priority_over_server() -> Result<()> {
 #[serial]
 async fn test_fallback_to_server_credentials() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Set up server-level credentials only (no user-specific)
@@ -368,12 +363,7 @@ async fn test_fallback_to_server_credentials() -> Result<()> {
 
     // Get credentials - should fall back to server-level
     let credentials = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
 
     assert_eq!(
@@ -389,14 +379,14 @@ async fn test_fallback_to_server_credentials() -> Result<()> {
 #[serial]
 async fn test_backward_compatible_get_credentials() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let oauth_config = Arc::new(create_test_oauth_config());
     let oauth_manager = TenantOAuthManager::new(oauth_config);
 
     // Use the original get_credentials (no user_id)
     let credentials = oauth_manager
-        .get_credentials(TenantId::from(tenant_id), "strava", &database)
+        .get_credentials(tenant_id, "strava", &database)
         .await?;
 
     assert_eq!(
@@ -412,7 +402,7 @@ async fn test_backward_compatible_get_credentials() -> Result<()> {
 #[serial]
 async fn test_error_when_no_credentials() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Set up empty OAuth config (no server-level credentials)
@@ -421,12 +411,7 @@ async fn test_error_when_no_credentials() -> Result<()> {
 
     // Should fail for garmin (no credentials anywhere)
     let result = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "garmin",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "garmin", &database)
         .await;
 
     assert!(result.is_err(), "Should error when no credentials exist");
@@ -439,7 +424,7 @@ async fn test_error_when_no_credentials() -> Result<()> {
 #[serial]
 async fn test_different_users_different_credentials() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
 
     let user_a = create_test_user(&database, "user_a@example.com", tenant_id).await?;
     let user_b = create_test_user(&database, "user_b@example.com", tenant_id).await?;
@@ -463,13 +448,13 @@ async fn test_different_users_different_credentials() -> Result<()> {
 
     // User A should get their own credentials
     let creds_a = oauth_manager
-        .get_credentials_for_user(Some(user_a), TenantId::from(tenant_id), "strava", &database)
+        .get_credentials_for_user(Some(user_a), tenant_id, "strava", &database)
         .await?;
     assert_eq!(creds_a.client_id, "user_a_client_id");
 
     // User B should get server-level credentials
     let creds_b = oauth_manager
-        .get_credentials_for_user(Some(user_b), TenantId::from(tenant_id), "strava", &database)
+        .get_credentials_for_user(Some(user_b), tenant_id, "strava", &database)
         .await?;
     assert_eq!(creds_b.client_id, "server_strava_id");
 
@@ -481,7 +466,7 @@ async fn test_different_users_different_credentials() -> Result<()> {
 #[serial]
 async fn test_tenant_credentials_priority() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Create tenant
@@ -506,16 +491,11 @@ async fn test_tenant_credentials_priority() -> Result<()> {
         scopes: vec!["read".to_owned()],
         configured_by: user_id,
     };
-    oauth_manager.store_credentials(TenantId::from(tenant_id), "strava", tenant_creds)?;
+    oauth_manager.store_credentials(tenant_id, "strava", tenant_creds)?;
 
     // With no user credentials, should get tenant-specific
     let credentials = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
 
     assert_eq!(
@@ -536,12 +516,7 @@ async fn test_tenant_credentials_priority() -> Result<()> {
 
     // Should now prefer user-specific over tenant-specific
     let credentials = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
 
     assert_eq!(
@@ -561,7 +536,7 @@ async fn test_tenant_credentials_priority() -> Result<()> {
 #[serial]
 async fn test_user_credentials_default_scopes() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let oauth_config = Arc::new(OAuthConfig::default());
@@ -579,7 +554,7 @@ async fn test_user_credentials_default_scopes() -> Result<()> {
         .await?;
 
     let credentials = oauth_manager
-        .get_credentials_for_user(Some(user_id), TenantId::from(tenant_id), "whoop", &database)
+        .get_credentials_for_user(Some(user_id), tenant_id, "whoop", &database)
         .await?;
 
     // Should have WHOOP default scopes
@@ -601,7 +576,7 @@ async fn test_user_credentials_default_scopes() -> Result<()> {
 #[serial]
 async fn test_user_credentials_default_rate_limits() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let oauth_config = Arc::new(OAuthConfig::default());
@@ -619,12 +594,7 @@ async fn test_user_credentials_default_rate_limits() -> Result<()> {
         .await?;
 
     let credentials = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
 
     // Strava has a higher default rate limit (15000/day)
@@ -645,7 +615,7 @@ async fn test_user_credentials_default_rate_limits() -> Result<()> {
 #[serial]
 async fn test_upsert_user_oauth_app() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Store initial credentials
@@ -735,7 +705,7 @@ async fn test_list_oauth_apps_non_existent_user() -> Result<()> {
 #[serial]
 async fn test_remove_non_existent_oauth_app() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Remove app that doesn't exist - should not error
@@ -753,8 +723,8 @@ async fn test_cross_tenant_isolation() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Create two different tenants
-    let tenant_a = Uuid::new_v4();
-    let tenant_b = Uuid::new_v4();
+    let tenant_a = TenantId::new();
+    let tenant_b = TenantId::new();
 
     let user_a = create_test_user(&database, "user_a@tenant_a.com", tenant_a).await?;
     let user_b = create_test_user(&database, "user_b@tenant_b.com", tenant_b).await?;
@@ -807,7 +777,7 @@ async fn test_cross_tenant_isolation() -> Result<()> {
 #[serial]
 async fn test_oauth_app_timestamps() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let before = chrono::Utc::now();
@@ -851,7 +821,7 @@ async fn test_oauth_app_timestamps() -> Result<()> {
 #[serial]
 async fn test_all_provider_rate_limits() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let oauth_config = Arc::new(OAuthConfig::default());
@@ -879,12 +849,7 @@ async fn test_all_provider_rate_limits() -> Result<()> {
             .await?;
 
         let credentials = oauth_manager
-            .get_credentials_for_user(
-                Some(user_id),
-                TenantId::from(tenant_id),
-                provider,
-                &database,
-            )
+            .get_credentials_for_user(Some(user_id), tenant_id, provider, &database)
             .await?;
 
         assert_eq!(
@@ -906,7 +871,7 @@ async fn test_all_provider_rate_limits() -> Result<()> {
 #[serial]
 async fn test_all_provider_default_scopes() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let oauth_config = Arc::new(OAuthConfig::default());
@@ -935,12 +900,7 @@ async fn test_all_provider_default_scopes() -> Result<()> {
             .await?;
 
         let credentials = oauth_manager
-            .get_credentials_for_user(
-                Some(user_id),
-                TenantId::from(tenant_id),
-                provider,
-                &database,
-            )
+            .get_credentials_for_user(Some(user_id), tenant_id, provider, &database)
             .await?;
 
         for scope in required_scopes {
@@ -964,7 +924,7 @@ async fn test_all_provider_default_scopes() -> Result<()> {
 #[serial]
 async fn test_valid_providers_accepted() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let valid_providers = ["strava", "fitbit", "garmin", "whoop", "terra"];
@@ -999,7 +959,7 @@ async fn test_valid_providers_accepted() -> Result<()> {
 #[serial]
 async fn test_complete_three_tier_resolution() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Create tenant
@@ -1018,12 +978,7 @@ async fn test_complete_three_tier_resolution() -> Result<()> {
 
     // Test with only server credentials
     let creds = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
     assert_eq!(
         creds.client_id, "server_strava_id",
@@ -1038,15 +993,10 @@ async fn test_complete_three_tier_resolution() -> Result<()> {
         scopes: vec!["read".to_owned()],
         configured_by: user_id,
     };
-    oauth_manager.store_credentials(TenantId::from(tenant_id), "strava", tenant_creds)?;
+    oauth_manager.store_credentials(tenant_id, "strava", tenant_creds)?;
 
     let creds = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
     assert_eq!(
         creds.client_id, "tenant_strava_id",
@@ -1065,12 +1015,7 @@ async fn test_complete_three_tier_resolution() -> Result<()> {
         .await?;
 
     let creds = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
     assert_eq!(
         creds.client_id, "user_strava_id",
@@ -1081,12 +1026,7 @@ async fn test_complete_three_tier_resolution() -> Result<()> {
     database.remove_user_oauth_app(user_id, "strava").await?;
 
     let creds = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "strava",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "strava", &database)
         .await?;
     assert_eq!(
         creds.client_id, "tenant_strava_id",
@@ -1101,7 +1041,7 @@ async fn test_complete_three_tier_resolution() -> Result<()> {
 #[serial]
 async fn test_none_user_id_skips_user_lookup() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Store user credentials
@@ -1121,7 +1061,7 @@ async fn test_none_user_id_skips_user_lookup() -> Result<()> {
 
     // With None user_id, should skip user lookup and use server
     let creds = oauth_manager
-        .get_credentials_for_user(None, TenantId::from(tenant_id), "strava", &database)
+        .get_credentials_for_user(None, tenant_id, "strava", &database)
         .await?;
 
     assert_eq!(
@@ -1141,7 +1081,7 @@ async fn test_none_user_id_skips_user_lookup() -> Result<()> {
 #[serial]
 async fn test_user_with_all_providers() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "power_user@example.com", tenant_id).await?;
 
     let oauth_config = Arc::new(OAuthConfig::default());
@@ -1165,12 +1105,7 @@ async fn test_user_with_all_providers() -> Result<()> {
     // Verify each provider returns correct credentials
     for provider in &providers {
         let creds = oauth_manager
-            .get_credentials_for_user(
-                Some(user_id),
-                TenantId::from(tenant_id),
-                provider,
-                &database,
-            )
+            .get_credentials_for_user(Some(user_id), tenant_id, provider, &database)
             .await?;
 
         assert_eq!(
@@ -1196,7 +1131,7 @@ async fn test_user_with_all_providers() -> Result<()> {
 #[serial]
 async fn test_error_unsupported_provider() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     let oauth_config = Arc::new(OAuthConfig::default());
@@ -1204,12 +1139,7 @@ async fn test_error_unsupported_provider() -> Result<()> {
 
     // Request credentials for unsupported provider
     let result = oauth_manager
-        .get_credentials_for_user(
-            Some(user_id),
-            TenantId::from(tenant_id),
-            "unsupported_provider",
-            &database,
-        )
+        .get_credentials_for_user(Some(user_id), tenant_id, "unsupported_provider", &database)
         .await;
 
     assert!(result.is_err(), "Should error for unsupported provider");
@@ -1222,7 +1152,7 @@ async fn test_error_unsupported_provider() -> Result<()> {
 #[serial]
 async fn test_provider_case_sensitivity() -> Result<()> {
     let database = setup_test_database().await?;
-    let tenant_id = Uuid::new_v4();
+    let tenant_id = TenantId::new();
     let user_id = create_test_user(&database, "user@example.com", tenant_id).await?;
 
     // Store with lowercase
