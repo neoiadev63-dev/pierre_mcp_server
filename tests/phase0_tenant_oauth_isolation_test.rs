@@ -72,9 +72,7 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: TenantId)
     };
     database.create_user(&user).await?;
     // Associate user with tenant via tenant_users junction table
-    database
-        .update_user_tenant_id(user_id, &tenant_id.to_string())
-        .await?;
+    database.update_user_tenant_id(user_id, tenant_id).await?;
     Ok(user_id)
 }
 
@@ -363,20 +361,12 @@ async fn test_cross_tenant_oauth_token_isolation() -> Result<()> {
 
     // Retrieve token for user1 in tenant A
     let retrieved_token1 = database
-        .get_user_oauth_token(
-            user1_id,
-            &alpha_tenant_id.to_string(),
-            oauth_providers::STRAVA,
-        )
+        .get_user_oauth_token(user1_id, alpha_tenant_id, oauth_providers::STRAVA)
         .await?;
 
     // Retrieve token for user2 in tenant B
     let retrieved_token2 = database
-        .get_user_oauth_token(
-            user2_id,
-            &beta_tenant_id.to_string(),
-            oauth_providers::STRAVA,
-        )
+        .get_user_oauth_token(user2_id, beta_tenant_id, oauth_providers::STRAVA)
         .await?;
 
     // Verify tokens are retrieved correctly
@@ -420,11 +410,7 @@ async fn test_cross_tenant_oauth_token_isolation() -> Result<()> {
 
     // Cross-tenant access attempt: Try to get user1's token with tenant B's ID
     let cross_tenant_attempt = database
-        .get_user_oauth_token(
-            user1_id,
-            &beta_tenant_id.to_string(),
-            oauth_providers::STRAVA,
-        )
+        .get_user_oauth_token(user1_id, beta_tenant_id, oauth_providers::STRAVA)
         .await?;
 
     assert!(
@@ -434,11 +420,7 @@ async fn test_cross_tenant_oauth_token_isolation() -> Result<()> {
 
     // Cross-user access attempt: Try to get user1's token with user2's ID
     let cross_user_attempt = database
-        .get_user_oauth_token(
-            user2_id,
-            &alpha_tenant_id.to_string(),
-            oauth_providers::STRAVA,
-        )
+        .get_user_oauth_token(user2_id, alpha_tenant_id, oauth_providers::STRAVA)
         .await?;
 
     assert!(
@@ -746,7 +728,7 @@ async fn test_concurrent_multitenant_oauth_operations() -> Result<()> {
 
         // Check token
         let token = database
-            .get_user_oauth_token(user_id, &tenant_id.to_string(), oauth_providers::STRAVA)
+            .get_user_oauth_token(user_id, tenant_id, oauth_providers::STRAVA)
             .await?;
         assert!(token.is_some(), "Token should exist for user/tenant pair");
         assert_eq!(

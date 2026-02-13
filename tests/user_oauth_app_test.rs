@@ -74,9 +74,7 @@ async fn create_test_user(database: &Database, email: &str, tenant_id: TenantId)
     };
     database.create_user(&user).await?;
     // Associate user with tenant via tenant_users junction table
-    database
-        .update_user_tenant_id(user_id, &tenant_id.to_string())
-        .await?;
+    database.update_user_tenant_id(user_id, tenant_id).await?;
     Ok(user_id)
 }
 
