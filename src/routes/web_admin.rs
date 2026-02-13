@@ -225,7 +225,7 @@ async fn assign_user_to_admin_tenant(
         // Update user's tenant_id in users table (kept in sync with tenant_users junction)
         resources
             .database
-            .update_user_tenant_id(target_user_id, &admin_tenant.id.to_string())
+            .update_user_tenant_id(target_user_id, admin_tenant.id)
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to assign user to admin's tenant");

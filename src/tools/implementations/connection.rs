@@ -435,13 +435,13 @@ impl McpTool for DisconnectProviderTool {
                 })?;
 
         // Require tenant_id to disconnect a provider — "default" fallback is invalid for UUID-based tenant IDs
-        let tenant_id_str = context.tenant_id.map(|id| id.to_string()).ok_or_else(|| {
+        let tenant_id = context.tenant_id.map(TenantId::from).ok_or_else(|| {
             AppError::auth_invalid("tenant_id is required to disconnect a provider")
         })?;
 
         // Disconnect by deleting the token directly
         match database
-            .delete_user_oauth_token(context.user_id, &tenant_id_str, provider)
+            .delete_user_oauth_token(context.user_id, tenant_id, provider)
             .await
         {
             Ok(()) => Ok(ToolResult::ok(json!({
