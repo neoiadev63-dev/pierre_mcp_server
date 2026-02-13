@@ -3884,7 +3884,7 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(parse_uuid(&tid)?)
+                Some(TenantId::from_uuid(parse_uuid(&tid)?))
             } else {
                 None
             };
@@ -3941,7 +3941,7 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(row) = row {
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(parse_uuid(&tid)?)
+                Some(TenantId::from_uuid(parse_uuid(&tid)?))
             } else {
                 None
             };
@@ -4272,7 +4272,7 @@ impl DatabaseProvider for PostgresDatabase {
 
             let tenant_id_str: Option<String> = row.get("tenant_id");
             let tenant_id = if let Some(tid) = tenant_id_str {
-                Some(parse_uuid(&tid)?)
+                Some(TenantId::from_uuid(parse_uuid(&tid)?))
             } else {
                 None
             };
