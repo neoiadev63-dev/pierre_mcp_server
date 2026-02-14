@@ -27,11 +27,11 @@ use crate::{
         ChatManager,
     },
     database_plugins::DatabaseProvider,
-    errors::{AppError, ErrorCode},
+    errors::AppError,
     llm::{get_coach_generation_prompt, ChatMessage, ChatProvider, ChatRequest},
     mcp::resources::ServerResources,
+    middleware::require_admin,
     models::TenantId,
-    permissions::UserRole,
     security::cookies::get_cookie_value,
 };
 use axum::{
@@ -1199,7 +1199,7 @@ impl CoachesRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1221,7 +1221,7 @@ impl CoachesRoutes {
         Json(body): Json<AdminCreateCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1240,7 +1240,7 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1261,7 +1261,7 @@ impl CoachesRoutes {
         Json(body): Json<UpdateCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1282,7 +1282,7 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1303,7 +1303,7 @@ impl CoachesRoutes {
         Json(body): Json<AssignCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1360,7 +1360,7 @@ impl CoachesRoutes {
         Json(body): Json<AssignCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1413,7 +1413,7 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1445,7 +1445,7 @@ impl CoachesRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1469,7 +1469,7 @@ impl CoachesRoutes {
         Query(params): Query<StoreListParams>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1498,7 +1498,7 @@ impl CoachesRoutes {
         Query(params): Query<StoreListParams>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
         let sort_by = params.sort_by.as_deref();
@@ -1527,7 +1527,7 @@ impl CoachesRoutes {
         Query(params): Query<StoreListParams>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1556,7 +1556,7 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1579,7 +1579,7 @@ impl CoachesRoutes {
         Json(body): Json<RejectCoachBody>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         // Combine reason with optional notes
@@ -1614,7 +1614,7 @@ impl CoachesRoutes {
         Path(id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        Self::require_admin(&resources, auth.user_id).await?;
+        require_admin(auth.user_id, &resources.database).await?;
         let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
 
         let manager = Self::get_coaches_manager(&resources)?;
@@ -1642,29 +1642,6 @@ impl CoachesRoutes {
         }
 
         Ok(result)
-    }
-
-    /// Check if user has admin role
-    async fn require_admin(
-        resources: &Arc<ServerResources>,
-        user_id: Uuid,
-    ) -> Result<(), AppError> {
-        let user = resources
-            .database
-            .get_user(user_id)
-            .await
-            .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
-            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
-
-        // Check if user has admin role
-        if !matches!(user.role, UserRole::Admin | UserRole::SuperAdmin) {
-            return Err(AppError::new(
-                ErrorCode::PermissionDenied,
-                "Admin role required for this operation",
-            ));
-        }
-
-        Ok(())
     }
 }
 
