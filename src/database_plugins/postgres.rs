@@ -4521,18 +4521,12 @@ impl DatabaseProvider for PostgresDatabase {
         expires_at: Option<DateTime<Utc>>,
     ) -> AppResult<()> {
         // SECURITY: Encrypt OAuth tokens at rest with AAD binding (AES-256-GCM)
-        let encrypted_access_token = shared::encryption::encrypt_oauth_token(
-            self,
-            access_token,
-            tenant_id,
-            user_id,
-            provider,
-        )?;
+        let tid = tenant_id.to_string();
+        let encrypted_access_token =
+            shared::encryption::encrypt_oauth_token(self, access_token, &tid, user_id, provider)?;
 
         let encrypted_refresh_token = refresh_token
-            .map(|rt| {
-                shared::encryption::encrypt_oauth_token(self, rt, tenant_id, user_id, provider)
-            })
+            .map(|rt| shared::encryption::encrypt_oauth_token(self, rt, &tid, user_id, provider))
             .transpose()?;
 
         sqlx::query(
@@ -6677,7 +6671,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(ConversationRecord {
             id,
             user_id: user_id.to_owned(),
-            tenant_id: tenant_id.to_owned(),
+            tenant_id: tenant_id.to_string(),
             title: title.to_owned(),
             model: model.to_owned(),
             system_prompt: system_prompt.map(ToOwned::to_owned),
