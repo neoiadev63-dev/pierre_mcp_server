@@ -8,15 +8,15 @@
       }
     },
     "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
     },
     "chrome-devtools": {
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest", "--chrome-arg=--no-sandbox", "--chrome-arg=--disable-dev-shm-usage"]
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "chrome-devtools-mcp@latest", "--chrome-arg=--no-sandbox", "--chrome-arg=--disable-dev-shm-usage"]
     },
     "linear": {
       "type": "http",
