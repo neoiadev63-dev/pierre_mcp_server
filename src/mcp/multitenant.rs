@@ -976,6 +976,8 @@ impl MultiTenantMcpServer {
         use crate::routes::configuration::ConfigurationRoutes;
         #[cfg(feature = "client-dashboard")]
         use crate::routes::dashboard::DashboardRoutes;
+        #[cfg(feature = "client-dashboard")]
+        use crate::routes::wellness::WellnessRoutes;
         #[cfg(feature = "client-settings")]
         use crate::routes::fitness::FitnessConfigurationRoutes;
         #[cfg(feature = "client-impersonation")]
@@ -1100,7 +1102,9 @@ impl MultiTenantMcpServer {
         // ═══════════════════════════════════════════════════════════════
 
         #[cfg(feature = "client-dashboard")]
-        let app = app.merge(DashboardRoutes::routes(Arc::clone(resources)));
+        let app = app
+            .merge(DashboardRoutes::routes(Arc::clone(resources)))
+            .merge(WellnessRoutes::routes(Arc::clone(resources)));
 
         #[cfg(feature = "client-settings")]
         let app = app

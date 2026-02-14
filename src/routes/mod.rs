@@ -68,6 +68,10 @@ pub mod configuration;
 #[cfg(feature = "client-settings")]
 pub mod fitness;
 
+/// Wellness data routes for real-time health metrics
+#[cfg(feature = "client-dashboard")]
+pub mod wellness;
+
 /// Chat conversation routes for AI assistants
 #[cfg(feature = "client-chat")]
 pub mod chat;
@@ -173,6 +177,9 @@ pub use oauth2::OAuth2Routes;
 // Client-web re-exports
 #[cfg(feature = "client-dashboard")]
 pub use dashboard::DashboardRoutes;
+
+#[cfg(feature = "client-dashboard")]
+pub use wellness::WellnessRoutes;
 
 #[cfg(feature = "client-settings")]
 pub use configuration::ConfigurationRoutes;
