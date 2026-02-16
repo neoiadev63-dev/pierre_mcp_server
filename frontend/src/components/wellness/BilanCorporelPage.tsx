@@ -103,6 +103,158 @@ function getReadinessLabel(score: number): string {
   return 'Repos recommandé';
 }
 
+// ── HRV Readiness Gauge ──
+function HrvReadinessGauge({ rmssd, sdrr, avg7d }: {
+  rmssd: number | null;
+  sdrr: number | null;
+  avg7d: number | null;
+}) {
+  if (rmssd === null) return null;
+
+  // Position 0-100 based on RMSSD vs 7-day average
+  let position: number;
+  if (avg7d !== null && avg7d > 0) {
+    const ratio = rmssd / avg7d;
+    // ratio 0.6 → 0%, ratio 0.9 → 43%, ratio 1.0 → 57%, ratio 1.3 → 100%
+    position = Math.max(0, Math.min(100, ((ratio - 0.6) / 0.7) * 100));
+  } else {
+    // Absolute scale (for ~50yo active male: 20ms=bad, 50ms=ok, 80ms+=great)
+    position = Math.max(0, Math.min(100, ((rmssd - 20) / 60) * 100));
+  }
+
+  const zones = [
+    { end: 20, color: '#ef4444', label: 'Repos' },
+    { end: 40, color: '#f97316', label: 'Léger' },
+    { end: 60, color: '#eab308', label: 'Modéré' },
+    { end: 80, color: '#84cc16', label: 'Normal' },
+    { end: 100, color: '#22c55e', label: 'Fonce !' },
+  ];
+
+  const currentZone = zones.find(z => position <= z.end) ?? zones[zones.length - 1];
+
+  let interpretation: string;
+  let emoji: string;
+  if (position >= 80) {
+    interpretation = "Votre systeme nerveux est bien repose. Seance intense possible, foncez !";
+    emoji = "\u{1F680}";
+  } else if (position >= 60) {
+    interpretation = "Bonne recuperation. Entrainement normal recommande.";
+    emoji = "\u2705";
+  } else if (position >= 40) {
+    interpretation = "Recuperation partielle. Privilegiez un effort modere.";
+    emoji = "\u26A1";
+  } else if (position >= 20) {
+    interpretation = "Fatigue detectee. Entrainement leger uniquement.";
+    emoji = "\u26A0\uFE0F";
+  } else {
+    interpretation = "Stress ou fatigue eleve. Repos recommande aujourd'hui.";
+    emoji = "\u{1F6D1}";
+  }
+
+  // SDRR/RMSSD ratio interpretation
+  let ratioInfo: string | null = null;
+  if (sdrr !== null && rmssd > 0) {
+    const ratio = sdrr / rmssd;
+    if (ratio > 1.8) ratioInfo = "Dominance sympathique (stress)";
+    else if (ratio > 1.2) ratioInfo = "Equilibre autonomique";
+    else ratioInfo = "Dominance parasympathique (recuperation)";
+  }
+
+  return (
+    <div className="card-dark !p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-medium text-zinc-400">Jauge VFC &mdash; Aptitude a l'effort</h3>
+        <span
+          className="text-xs px-2.5 py-1 rounded-full font-semibold"
+          style={{ backgroundColor: currentZone.color + '25', color: currentZone.color }}
+        >
+          {currentZone.label}
+        </span>
+      </div>
+
+      {/* Gauge bar */}
+      <div className="relative h-8 mb-1">
+        {/* Background segments */}
+        <div className="absolute inset-0 flex rounded-full overflow-hidden gap-px">
+          {zones.map((zone, i) => (
+            <div
+              key={i}
+              className="flex-1 h-full"
+              style={{ backgroundColor: zone.color + '30' }}
+            />
+          ))}
+        </div>
+
+        {/* Filled bar */}
+        <div
+          className="absolute top-0 left-0 h-full rounded-l-full transition-all duration-700 ease-out"
+          style={{
+            width: `${position}%`,
+            background: `linear-gradient(90deg, #ef4444 0%, ${currentZone.color} 100%)`,
+            borderTopRightRadius: position >= 98 ? '9999px' : '4px',
+            borderBottomRightRadius: position >= 98 ? '9999px' : '4px',
+          }}
+        />
+
+        {/* Cursor thumb */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-700 ease-out z-10"
+          style={{ left: `${position}%` }}
+        >
+          <div
+            className="w-9 h-9 rounded-full bg-white shadow-lg shadow-black/50 border-[3px] flex items-center justify-center"
+            style={{ borderColor: currentZone.color }}
+          >
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: currentZone.color }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Zone labels */}
+      <div className="flex justify-between text-[10px] text-zinc-500 px-1 mb-5">
+        {zones.map((zone) => (
+          <span key={zone.label} style={{ color: position <= zone.end && position > (zone.end - 20) ? zone.color : undefined }}>
+            {zone.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Interpretation card */}
+      <div className="flex items-start gap-3 bg-white/[0.04] rounded-xl p-4 border border-white/[0.06]">
+        <div
+          className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-xl"
+          style={{ backgroundColor: currentZone.color + '20' }}
+        >
+          {emoji}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white leading-snug">{interpretation}</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+            <span className="text-xs text-zinc-500">
+              RMSSD: <span className="text-purple-400 font-mono font-medium">{rmssd} ms</span>
+            </span>
+            {sdrr !== null && (
+              <span className="text-xs text-zinc-500">
+                SDRR: <span className="text-indigo-400 font-mono font-medium">{sdrr} ms</span>
+              </span>
+            )}
+            {avg7d !== null && (
+              <span className="text-xs text-zinc-500">
+                Moy 7j: <span className="text-zinc-300 font-mono font-medium">{Math.round(avg7d)} ms</span>
+              </span>
+            )}
+          </div>
+          {ratioInfo && (
+            <p className="text-[11px] text-zinc-500 mt-1">
+              Ratio SDRR/RMSSD: <span className="text-zinc-300">{(sdrr! / rmssd).toFixed(1)}</span> &mdash; {ratioInfo}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Sparkline component ──
 function Sparkline({ values, color = '#06b6d4', height = 32, width = 120 }: {
   values: number[];
@@ -306,6 +458,9 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
           </div>
         </div>
       </div>
+
+      {/* ── Section 1b: Jauge VFC ── */}
+      <HrvReadinessGauge rmssd={hrvRmssd} sdrr={hrvSdrr} avg7d={hrvAvg7d} />
 
       {/* ── Section 2: Recommandation VTT ── */}
       <div className="card-dark !p-6">
