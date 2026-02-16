@@ -29,9 +29,9 @@ export default function WellnessTab() {
     setRefreshing(true);
     setRefreshStatus(null);
     try {
-      const token = localStorage.getItem('auth_token');
       const headers: HeadersInit = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
+      const csrfToken = localStorage.getItem('pierre_csrf_token');
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
 
       const res = await fetch('/api/wellness/refresh', {
         method: 'POST',
