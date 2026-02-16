@@ -109,7 +109,7 @@ RUN ls -lh target/release/pierre-mcp-server
 # ============================================================
 # Stage 3: Production Runtime
 # ============================================================
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 # Install runtime dependencies + Python for Garmin refresh
 RUN apt-get update && apt-get install -y \
