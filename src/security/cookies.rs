@@ -58,7 +58,7 @@ impl SecureCookieConfig {
             max_age_secs,
             http_only: true,
             secure,
-            same_site: SameSitePolicy::Strict,
+            same_site: SameSitePolicy::Lax,
             path: "/".to_owned(),
         }
     }
@@ -134,7 +134,7 @@ pub fn set_csrf_cookie(headers: &mut HeaderMap, csrf_token: &str, max_age_secs: 
 /// # Arguments
 /// * `headers` - HTTP headers to modify
 pub fn clear_auth_cookie(headers: &mut HeaderMap) {
-    let mut cookie = "auth_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict".to_owned();
+    let mut cookie = "auth_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax".to_owned();
     if infer_secure_flag() {
         cookie.push_str("; Secure");
     }
