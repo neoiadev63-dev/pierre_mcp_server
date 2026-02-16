@@ -53,6 +53,7 @@ services:
       # Server
       HOST: "0.0.0.0"
       HTTP_PORT: "8081"
+      BASE_URL: "http://82.25.117.39:8081"
       RUST_LOG: ${RUST_LOG:-info}
       # Security
       PIERRE_MASTER_ENCRYPTION_KEY: ${PIERRE_MASTER_ENCRYPTION_KEY:?Set PIERRE_MASTER_ENCRYPTION_KEY}
