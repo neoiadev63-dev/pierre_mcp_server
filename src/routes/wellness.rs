@@ -47,8 +47,14 @@ impl WellnessRoutes {
     pub fn routes(resources: Arc<ServerResources>) -> Router {
         Router::new()
             .route("/api/wellness/summary", get(Self::handle_wellness_summary))
-            .route("/api/wellness/nutrition", get(Self::handle_get_nutrition).post(Self::handle_save_nutrition))
-            .route("/api/wellness/waist", get(Self::handle_get_waist).post(Self::handle_save_waist))
+            .route(
+                "/api/wellness/nutrition",
+                get(Self::handle_get_nutrition).post(Self::handle_save_nutrition),
+            )
+            .route(
+                "/api/wellness/waist",
+                get(Self::handle_get_waist).post(Self::handle_save_waist),
+            )
             .route("/api/wellness/refresh", post(Self::handle_wellness_refresh))
             .route("/api/wellness/ride-report", post(Self::handle_ride_report))
             .with_state(resources)
@@ -190,7 +196,11 @@ impl WellnessRoutes {
             .await
             .map_err(|e| AppError::internal(format!("Failed to write file: {e}")))?;
 
-        Ok((StatusCode::OK, Json(json!({"ok": true, "count": entries.len()}))).into_response())
+        Ok((
+            StatusCode::OK,
+            Json(json!({"ok": true, "count": entries.len()})),
+        )
+            .into_response())
     }
 
     /// Handle retrieving waist measurement history
@@ -568,8 +578,12 @@ impl WellnessRoutes {
             }
         });
 
-        let garth_home = std::env::var("GARTH_HOME")
-            .unwrap_or_else(|_| Self::data_dir().join(".garth").to_string_lossy().to_string());
+        let garth_home = std::env::var("GARTH_HOME").unwrap_or_else(|_| {
+            Self::data_dir()
+                .join(".garth")
+                .to_string_lossy()
+                .to_string()
+        });
 
         tracing::info!(
             "Wellness refresh: {} {} -> {}",
@@ -600,9 +614,7 @@ impl WellnessRoutes {
         })?
         .map_err(|e| {
             tracing::error!("Failed to spawn refresh script: {e}");
-            AppError::internal(format!(
-                "Failed to run refresh script ({python_cmd}): {e}"
-            ))
+            AppError::internal(format!("Failed to run refresh script ({python_cmd}): {e}"))
         })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -613,11 +625,7 @@ impl WellnessRoutes {
         }
 
         if !output.status.success() {
-            tracing::error!(
-                "Refresh script failed (exit {}): {}",
-                output.status,
-                stderr
-            );
+            tracing::error!("Refresh script failed (exit {}): {}", output.status, stderr);
             return Ok((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({
@@ -639,9 +647,7 @@ impl WellnessRoutes {
                     tracing::error!("Invalid JSON in output file: {e}");
                     Ok((
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(
-                            json!({ "ok": false, "error": format!("Invalid JSON output: {e}") }),
-                        ),
+                        Json(json!({ "ok": false, "error": format!("Invalid JSON output: {e}") })),
                     )
                         .into_response())
                 }
@@ -701,9 +707,7 @@ impl WellnessRoutes {
         .map_err(|e| AppError::internal(format!("Task error: {e}")))?
         .map_err(|e| {
             tracing::error!("Failed to run ride report script: {e}");
-            AppError::internal(format!(
-                "Failed to run ride report ({python_cmd}): {e}"
-            ))
+            AppError::internal(format!("Failed to run ride report ({python_cmd}): {e}"))
         })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
