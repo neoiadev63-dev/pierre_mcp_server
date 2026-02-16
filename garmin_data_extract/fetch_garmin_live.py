@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fetch live wellness data from Garmin Connect API and generate wellness_summary.json."""
 
+import io
 import json
 import os
 import statistics
@@ -8,6 +9,7 @@ import sys
 import urllib.request
 import urllib.error
 import urllib.parse
+import zipfile
 from datetime import datetime, timedelta, date
 from pathlib import Path
 
@@ -140,6 +142,86 @@ def fetch_hrv_daily(d: date) -> dict | None:
         return data
     except Exception:
         return None
+
+
+def fetch_health_snapshots(d: date) -> list[dict]:
+    """Fetch Health Snapshot data from Garmin wellness FIT files.
+
+    Health Snapshots (manual 2-min measurements) are stored as FIT activities
+    with sport=60 inside the daily wellness download archive.
+    Returns a list of snapshot dicts for the given date.
+    """
+    date_str = d.strftime("%Y-%m-%d")
+    try:
+        import fitdecode
+    except ImportError:
+        return []
+
+    try:
+        resp = garth.client.request(
+            "GET", "connectapi",
+            f"/download-service/files/wellness/{date_str}",
+            api=True,
+        )
+        if resp.status_code != 200 or len(resp.content) < 100:
+            return []
+    except Exception:
+        return []
+
+    snapshots = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            for name in zf.namelist():
+                if not name.upper().endswith(".FIT"):
+                    continue
+                fit_data = zf.read(name)
+                try:
+                    with fitdecode.FitReader(io.BytesIO(fit_data)) as reader:
+                        is_snapshot = False
+                        snapshot = {}
+                        for frame in reader:
+                            if not isinstance(frame, fitdecode.FitDataMessage):
+                                continue
+                            if frame.name == "sport":
+                                sport_val = None
+                                for f in frame.fields:
+                                    if f.name == "sport":
+                                        sport_val = f.value
+                                    elif f.name == "name":
+                                        snapshot["sport_name"] = f.value
+                                # sport=60 is Health Snapshot ("Aperçu santé")
+                                if sport_val == 60:
+                                    is_snapshot = True
+                            elif frame.name == "session" and is_snapshot:
+                                for f in frame.fields:
+                                    if f.name == "avg_heart_rate":
+                                        snapshot["avg_hr"] = f.value
+                                    elif f.name == "max_heart_rate":
+                                        snapshot["max_hr"] = f.value
+                                    elif f.name == "rmssd_hrv":
+                                        snapshot["rmssd"] = f.value
+                                    elif f.name == "sdrr_hrv":
+                                        snapshot["sdrr"] = f.value
+                                    elif f.name == "avg_spo2":
+                                        snapshot["avg_spo2"] = f.value
+                                    elif f.name == "avg_stress":
+                                        snapshot["avg_stress"] = f.value
+                                    elif f.name == "enhanced_avg_respiration_rate":
+                                        snapshot["avg_resp"] = f.value
+                                    elif f.name == "enhanced_max_respiration_rate":
+                                        snapshot["max_resp"] = f.value
+                                    elif f.name == "start_time":
+                                        snapshot["start_time"] = str(f.value)
+                                    elif f.name == "total_elapsed_time":
+                                        snapshot["duration_s"] = f.value
+                        if is_snapshot and snapshot.get("rmssd") is not None:
+                            snapshots.append(snapshot)
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    return snapshots
 
 
 def build_sleep_detail(sleep_raw: dict | None, **_kwargs) -> dict | None:
@@ -617,7 +699,7 @@ def fetch_latest_activity() -> dict | None:
         return None
 
 
-def build_daily_entry(d: date, daily: dict, sleep: dict | None, hrv: dict | None = None) -> dict:
+def build_daily_entry(d: date, daily: dict, sleep: dict | None, hrv: dict | None = None, health_snapshots: list | None = None) -> dict:
     """Build a daily wellness entry from Garmin API data."""
     date_str = d.strftime("%Y-%m-%d")
 
@@ -710,6 +792,14 @@ def build_daily_entry(d: date, daily: dict, sleep: dict | None, hrv: dict | None
             if len(reading_values) >= 3:
                 hrv_sdrr = statistics.stdev(reading_values)
 
+        # Fallback: use Health Snapshot data (manual 2-min measurement)
+        if hrv_rmssd is None and health_snapshots:
+            # Use the most recent snapshot of the day
+            snap = health_snapshots[-1]
+            hrv_rmssd = snap.get("rmssd")
+            hrv_sdrr = snap.get("sdrr")
+            hrv_status = "SNAPSHOT"  # Mark as from manual snapshot
+
         entry["sleep"] = {
             "score": overall_score,
             "quality": quality_score,
@@ -729,7 +819,24 @@ def build_daily_entry(d: date, daily: dict, sleep: dict | None, hrv: dict | None
             "hrv_status": hrv_status,
         }
     else:
-        entry["sleep"] = None
+        # No sleep data, but Health Snapshot may still provide HRV
+        if health_snapshots:
+            snap = health_snapshots[-1]
+            entry["sleep"] = {
+                "score": None, "quality": None,
+                "duration_seconds": 0, "deep_seconds": 0,
+                "light_seconds": 0, "rem_seconds": 0, "awake_seconds": 0,
+                "recovery_score": None, "restfulness_score": None,
+                "spo2_avg": snap.get("avg_spo2"),
+                "hr_avg": snap.get("avg_hr"),
+                "respiration_avg": snap.get("avg_resp"),
+                "feedback": None,
+                "hrv_rmssd": snap.get("rmssd"),
+                "hrv_sdrr": snap.get("sdrr"),
+                "hrv_status": "SNAPSHOT",
+            }
+        else:
+            entry["sleep"] = None
 
     return entry
 
@@ -1672,9 +1779,12 @@ def main():
             continue
         sleep = fetch_sleep(d)
         hrv = fetch_hrv_daily(d)
-        entry = build_daily_entry(d, daily, sleep, hrv)
+        # Fetch Health Snapshot data from wellness FIT files
+        snapshots = fetch_health_snapshots(d)
+        entry = build_daily_entry(d, daily, sleep, hrv, health_snapshots=snapshots)
         days.append(entry)
-        sys.stdout.write(f"\r    {d.strftime('%Y-%m-%d')} ({len(days)} days)")
+        snap_info = f" +{len(snapshots)}snap" if snapshots else ""
+        sys.stdout.write(f"\r    {d.strftime('%Y-%m-%d')} ({len(days)} days{snap_info})")
         sys.stdout.flush()
 
     print(f"\n    Total: {len(days)} days fetched")
