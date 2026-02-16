@@ -3,6 +3,7 @@
 
 import json
 import os
+import statistics
 import sys
 import urllib.request
 import urllib.error
@@ -692,6 +693,7 @@ def build_daily_entry(d: date, daily: dict, sleep: dict | None, hrv: dict | None
 
         # Extract HRV data
         hrv_rmssd = None
+        hrv_sdrr = None
         hrv_status = None
         if hrv:
             hrv_summary = hrv.get("hrvSummary") or {}
@@ -700,6 +702,13 @@ def build_daily_entry(d: date, daily: dict, sleep: dict | None, hrv: dict | None
             # Fallback: check weekly average if no nightly value
             if hrv_rmssd is None:
                 hrv_rmssd = hrv_summary.get("weeklyAvg")
+
+            # Compute SDRR (SD of RR intervals) from 5-min HRV readings
+            # SDRR = standard deviation of the HRV values across the night
+            hrv_readings = hrv.get("hrvReadings") or []
+            reading_values = [r.get("hrvValue") for r in hrv_readings if r.get("hrvValue") is not None and r.get("hrvValue") > 0]
+            if len(reading_values) >= 3:
+                hrv_sdrr = statistics.stdev(reading_values)
 
         entry["sleep"] = {
             "score": overall_score,
@@ -716,6 +725,7 @@ def build_daily_entry(d: date, daily: dict, sleep: dict | None, hrv: dict | None
             "respiration_avg": s.get("averageRespirationValue") or s.get("averageRespiration"),
             "feedback": scores.get("feedback"),
             "hrv_rmssd": round(hrv_rmssd, 1) if hrv_rmssd is not None else None,
+            "hrv_sdrr": round(hrv_sdrr, 1) if hrv_sdrr is not None else None,
             "hrv_status": hrv_status,
         }
     else:
@@ -1768,7 +1778,7 @@ def main():
         if d["heartRate"]["resting"]
     ]
     hrv_trend_7d = [
-        {"date": d["date"], "rmssd": d["sleep"]["hrv_rmssd"], "status": d["sleep"].get("hrv_status", "")}
+        {"date": d["date"], "rmssd": d["sleep"]["hrv_rmssd"], "sdrr": d["sleep"].get("hrv_sdrr"), "status": d["sleep"].get("hrv_status", "")}
         for d in last_7
         if d.get("sleep") and d["sleep"].get("hrv_rmssd") is not None
     ]
@@ -2136,6 +2146,23 @@ def ride_report_main():
     vo2max = data.get("vo2max")
     fitness_age = data.get("fitnessAge")
 
+    # HRV readiness: find sleep data for the night before the ride
+    ride_date = latest.get("date", "")
+    days = data.get("days") or []
+    pre_ride_hrv = None
+    for day in days:
+        if day.get("date") == ride_date and day.get("sleep"):
+            sleep = day["sleep"]
+            pre_ride_hrv = {
+                "hrv_rmssd": sleep.get("hrv_rmssd"),
+                "hrv_sdrr": sleep.get("hrv_sdrr"),
+                "hrv_status": sleep.get("hrv_status"),
+                "sleep_score": sleep.get("score"),
+                "body_battery": day.get("bodyBattery", {}).get("estimate"),
+                "stress_avg": day.get("stress", {}).get("average"),
+            }
+            break
+
     # Generate AI analysis
     print("\n  Generating AI analysis...")
     ai_analysis = generate_ride_report_ai(
@@ -2163,6 +2190,7 @@ def ride_report_main():
         "ok": True,
         "generated_at": datetime.now().isoformat(),
         "activity": latest,
+        "preRideHrv": pre_ride_hrv,
         "weightComparison": weight_comparison,
         "historicalComparison": comparison,
         "vo2max": vo2max,

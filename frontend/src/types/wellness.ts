@@ -49,6 +49,7 @@ export interface WellnessSleep {
   respiration_avg: number | null;
   feedback: string | null;
   hrv_rmssd: number | null;
+  hrv_sdrr: number | null;
   hrv_status: string | null;
 }
 
@@ -93,6 +94,7 @@ export interface HrTrendPoint {
 export interface HrvTrendPoint {
   date: string;
   rmssd: number;
+  sdrr: number | null;
   status: string;
 }
 

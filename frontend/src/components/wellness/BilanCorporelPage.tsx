@@ -173,10 +173,14 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
 
     // HRV
     const hrvRmssd = latest.sleep?.hrv_rmssd ?? null;
+    const hrvSdrr = latest.sleep?.hrv_sdrr ?? null;
     const hrvStatus = latest.sleep?.hrv_status ?? null;
     const hrvTrend = data.hrvTrend7d ?? [];
     const hrvAvg7d = hrvTrend.length > 0
       ? hrvTrend.reduce((sum, p) => sum + p.rmssd, 0) / hrvTrend.length
+      : null;
+    const sdrrAvg7d = hrvTrend.length > 0
+      ? hrvTrend.filter(p => p.sdrr !== null).reduce((sum, p) => sum + (p.sdrr ?? 0), 0) / (hrvTrend.filter(p => p.sdrr !== null).length || 1)
       : null;
 
     // Weight trend
@@ -208,9 +212,11 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
       zones,
       readiness,
       hrvRmssd,
+      hrvSdrr,
       hrvStatus,
       hrvTrend,
       hrvAvg7d,
+      sdrrAvg7d,
       weightTrend,
       waistTrend,
       waistEntries,
@@ -226,7 +232,7 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
     );
   }
 
-  const { latest, zones, readiness, hrvRmssd, hrvStatus, hrvTrend, hrvAvg7d, waistEntries } = bilan;
+  const { latest, zones, readiness, hrvRmssd, hrvSdrr, hrvStatus, hrvTrend, hrvAvg7d, sdrrAvg7d, waistEntries } = bilan;
 
   // ── VTT Recommendation ──
   const getVttRec = () => {
@@ -241,6 +247,7 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
   const last7 = data.days.slice(-7);
   const bbValues = last7.map(d => d.bodyBattery.estimate).filter((v): v is number => v !== null);
   const hrvValues = hrvTrend.map(p => p.rmssd);
+  const sdrrValues = hrvTrend.map(p => p.sdrr).filter((v): v is number => v !== null);
   const rhrValues = last7.map(d => d.heartRate.resting).filter((v): v is number => v !== null);
   const stressValues = last7.map(d => d.stress.average).filter((v): v is number => v !== null);
   const sleepValues = last7.map(d => d.sleep?.score).filter((v): v is number => v !== null && v !== undefined);
@@ -293,7 +300,7 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
               Calculé à partir de : Body Battery ({latest.bodyBattery.estimate ?? '--'}/100),
               Sommeil ({latest.sleep?.score ?? '--'}/100),
               Stress ({latest.stress.average !== null ? Math.round(latest.stress.average) : '--'}),
-              VFC ({hrvRmssd ?? '--'} ms),
+              VFC RMSSD ({hrvRmssd ?? '--'} ms), VFC SDRR ({hrvSdrr ?? '--'} ms),
               Tendance poids/taille
             </p>
           </div>
@@ -404,15 +411,25 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
             trend={data.hrTrend7d.length >= 2 ? `${data.hrTrend7d[data.hrTrend7d.length - 1].resting - data.hrTrend7d[0].resting > 0 ? '+' : ''}${data.hrTrend7d[data.hrTrend7d.length - 1].resting - data.hrTrend7d[0].resting} bpm/7j` : undefined}
             color="#ef4444"
           />
-          {/* 5. VFC (HRV) */}
+          {/* 5. VFC RMSSD */}
           <StatCard
             icon="📊"
-            label="VFC (HRV)"
+            label="VFC (RMSSD)"
             value={hrvRmssd !== null ? String(hrvRmssd) : '--'}
             unit="ms"
             qualifier={hrvStatus === 'BALANCED' ? 'Bon' : hrvStatus === 'LOW' ? 'Mauvais' : hrvStatus === 'UNBALANCED' ? 'Moyen' : undefined}
             trend={hrvAvg7d !== null ? `Moy 7j: ${Math.round(hrvAvg7d)} ms` : undefined}
             color="#a855f7"
+          />
+          {/* 5b. VFC SDRR */}
+          <StatCard
+            icon="📈"
+            label="VFC (SDRR)"
+            value={hrvSdrr !== null ? String(hrvSdrr) : '--'}
+            unit="ms"
+            qualifier={hrvSdrr !== null ? (hrvSdrr >= 50 ? 'Bon' : hrvSdrr >= 30 ? 'Moyen' : 'Mauvais') : undefined}
+            trend={sdrrAvg7d !== null && sdrrAvg7d > 0 ? `Moy 7j: ${Math.round(sdrrAvg7d)} ms` : undefined}
+            color="#818cf8"
           />
           {/* 6. Stress */}
           <StatCard
@@ -475,8 +492,14 @@ export default function BilanCorporelPage({ data }: BilanCorporelPageProps) {
           )}
           {hrvValues.length >= 2 && (
             <div className="flex items-center gap-3">
-              <span className="text-xs text-zinc-500 w-24">HRV (RMSSD)</span>
+              <span className="text-xs text-zinc-500 w-24">VFC (RMSSD)</span>
               <Sparkline values={hrvValues} color="#a855f7" />
+            </div>
+          )}
+          {sdrrValues.length >= 2 && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-zinc-500 w-24">VFC (SDRR)</span>
+              <Sparkline values={sdrrValues} color="#818cf8" />
             </div>
           )}
           {rhrValues.length >= 2 && (

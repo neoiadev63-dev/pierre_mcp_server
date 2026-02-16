@@ -24,11 +24,21 @@ interface StatComparison {
   rank: number | null;
 }
 
+interface PreRideHrv {
+  hrv_rmssd: number | null;
+  hrv_sdrr: number | null;
+  hrv_status: string | null;
+  sleep_score: number | null;
+  body_battery: number | null;
+  stress_avg: number | null;
+}
+
 interface RideReport {
   ok: boolean;
   error?: string;
   generated_at?: string;
   activity?: ActivitySummary;
+  preRideHrv?: PreRideHrv | null;
   weightComparison?: {
     before: WeightEntry | null;
     after: WeightEntry | null;
@@ -246,7 +256,7 @@ export default function RideReportPage() {
     );
   }
 
-  const { activity: act, weightComparison, historicalComparison, vo2max, fitnessAge, aiAnalysis, allRides } = report;
+  const { activity: act, preRideHrv, weightComparison, historicalComparison, vo2max, fitnessAge, aiAnalysis, allRides } = report;
   const sportLabel = SPORT_LABELS[act.activityType] || act.activityType;
 
   return (
@@ -294,6 +304,58 @@ export default function RideReportPage() {
           </div>
         ))}
       </div>
+
+      {/* Pre-ride physiological readiness */}
+      {preRideHrv && (preRideHrv.hrv_rmssd !== null || preRideHrv.hrv_sdrr !== null) && (
+        <div className="card-dark space-y-3">
+          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wide flex items-center gap-2">
+            <span className="text-lg">&#129657;</span> État physiologique pré-entraînement
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {preRideHrv.hrv_rmssd !== null && (
+              <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                <div className="text-[10px] text-zinc-500 uppercase">VFC (RMSSD)</div>
+                <div className="text-xl font-bold text-purple-400">{preRideHrv.hrv_rmssd} <span className="text-sm text-zinc-400">ms</span></div>
+              </div>
+            )}
+            {preRideHrv.hrv_sdrr !== null && (
+              <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                <div className="text-[10px] text-zinc-500 uppercase">VFC (SDRR)</div>
+                <div className="text-xl font-bold text-indigo-400">{preRideHrv.hrv_sdrr} <span className="text-sm text-zinc-400">ms</span></div>
+              </div>
+            )}
+            {preRideHrv.hrv_status && (
+              <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                <div className="text-[10px] text-zinc-500 uppercase">Statut VFC</div>
+                <div className={`text-xl font-bold ${preRideHrv.hrv_status === 'BALANCED' ? 'text-emerald-400' : preRideHrv.hrv_status === 'LOW' ? 'text-red-400' : 'text-amber-400'}`}>
+                  {preRideHrv.hrv_status === 'BALANCED' ? 'Équilibré' : preRideHrv.hrv_status === 'LOW' ? 'Bas' : 'Déséquilibré'}
+                </div>
+              </div>
+            )}
+            {preRideHrv.sleep_score !== null && (
+              <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                <div className="text-[10px] text-zinc-500 uppercase">Sommeil</div>
+                <div className="text-xl font-bold text-indigo-300">{preRideHrv.sleep_score} <span className="text-sm text-zinc-400">/100</span></div>
+              </div>
+            )}
+            {preRideHrv.body_battery !== null && (
+              <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                <div className="text-[10px] text-zinc-500 uppercase">Body Battery</div>
+                <div className="text-xl font-bold text-emerald-400">{preRideHrv.body_battery} <span className="text-sm text-zinc-400">/100</span></div>
+              </div>
+            )}
+            {preRideHrv.stress_avg !== null && (
+              <div className="bg-white/5 rounded-lg p-3 space-y-1">
+                <div className="text-[10px] text-zinc-500 uppercase">Stress</div>
+                <div className={`text-xl font-bold ${preRideHrv.stress_avg > 50 ? 'text-orange-400' : 'text-zinc-300'}`}>{Math.round(preRideHrv.stress_avg)}</div>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-zinc-500">
+            Données physiologiques de la nuit précédant la sortie. VFC élevée + stress bas = feux au vert.
+          </p>
+        </div>
+      )}
 
       {/* HR zones */}
       {act.hrZones && act.hrZones.some(z => z.seconds > 0) && (

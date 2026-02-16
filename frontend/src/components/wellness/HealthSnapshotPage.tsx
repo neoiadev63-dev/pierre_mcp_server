@@ -18,6 +18,7 @@ interface HealthRow {
   respirationAvg: number | null;
   stressAvg: number | null;
   hrvRmssd: number | null;
+  hrvSdrr: number | null;
 }
 
 const PAGE_SIZE = 20;
@@ -40,6 +41,7 @@ function buildRows(days: WellnessDay[]): HealthRow[] {
       respirationAvg: d.sleep!.respiration_avg,
       stressAvg: d.stress.average,
       hrvRmssd: d.sleep!.hrv_rmssd ?? null,
+      hrvSdrr: d.sleep!.hrv_sdrr ?? null,
     }))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
@@ -95,6 +97,7 @@ export default function HealthSnapshotPage({ data }: HealthSnapshotPageProps) {
                 <th className="text-right py-2.5 px-3 font-medium">{t('wellness.health.avgResp')}</th>
                 <th className="text-right py-2.5 px-3 font-medium">{t('wellness.health.avgStress')}</th>
                 <th className="text-right py-2.5 px-3 font-medium">{t('wellness.health.hrvRmssd')}</th>
+                <th className="text-right py-2.5 px-3 font-medium">VFC (SDRR)</th>
                 <th className="w-8" />
               </tr>
             </thead>
@@ -141,6 +144,13 @@ export default function HealthSnapshotPage({ data }: HealthSnapshotPageProps) {
                   <td className="py-2.5 px-3 text-right">
                     {row.hrvRmssd !== null ? (
                       <span className="text-purple-400">{row.hrvRmssd} ms</span>
+                    ) : (
+                      <span className="text-zinc-600">--</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 text-right">
+                    {row.hrvSdrr !== null ? (
+                      <span className="text-indigo-400">{row.hrvSdrr} ms</span>
                     ) : (
                       <span className="text-zinc-600">--</span>
                     )}
