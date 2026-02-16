@@ -78,17 +78,28 @@ export async function searchOpenFoodFacts(query: string, signal?: AbortSignal): 
   return data.products
     .filter(p => {
       const name = p.product_name_fr || p.product_name;
-      return name && name.length > 0 && p.nutriments;
+      if (!name || name.length === 0 || !p.nutriments) return false;
+      // Filter out products with no useful nutritional data
+      const n = p.nutriments;
+      const hasCal = (n['energy-kcal_100g'] ?? n['energy_100g']) > 0;
+      const hasMacro = (n['proteins_100g'] > 0) || (n['carbohydrates_100g'] > 0) || (n['fat_100g'] > 0);
+      return hasCal || hasMacro;
     })
     .map(p => {
       const name = p.product_name_fr || p.product_name || 'Inconnu';
       const brand = p.brands?.split(',')[0]?.trim() || '';
+      const per100g = mapNutriments(p.nutriments || {});
+      // Completeness score: count how many nutrients are filled
+      const filled = Object.values(per100g).filter(v => v !== undefined && v > 0).length;
       return {
         id: `off_${p.code}`,
         name: brand ? `${name} (${brand})` : name,
         brand,
-        per100g: mapNutriments(p.nutriments || {}),
+        per100g,
+        _completeness: filled,
       };
     })
-    .filter(f => f.per100g.calories > 0 || f.per100g.protein > 0);
+    .filter(f => f.per100g.calories > 0 || f.per100g.protein > 0)
+    .sort((a, b) => b._completeness - a._completeness)
+    .map(({ _completeness, ...rest }) => rest);
 }

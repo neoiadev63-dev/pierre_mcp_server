@@ -17,6 +17,7 @@ interface HealthRow {
   spo2Avg: number | null;
   respirationAvg: number | null;
   stressAvg: number | null;
+  hrvRmssd: number | null;
 }
 
 const PAGE_SIZE = 20;
@@ -38,6 +39,7 @@ function buildRows(days: WellnessDay[]): HealthRow[] {
       spo2Avg: d.sleep!.spo2_avg,
       respirationAvg: d.sleep!.respiration_avg,
       stressAvg: d.stress.average,
+      hrvRmssd: d.sleep!.hrv_rmssd ?? null,
     }))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
@@ -136,7 +138,13 @@ export default function HealthSnapshotPage({ data }: HealthSnapshotPageProps) {
                       <span className="text-zinc-600">--</span>
                     )}
                   </td>
-                  <td className="py-2.5 px-3 text-right text-zinc-600">--</td>
+                  <td className="py-2.5 px-3 text-right">
+                    {row.hrvRmssd !== null ? (
+                      <span className="text-purple-400">{row.hrvRmssd} ms</span>
+                    ) : (
+                      <span className="text-zinc-600">--</span>
+                    )}
+                  </td>
                   <td className="py-2.5 px-1">
                     <button className="p-1 text-zinc-600 hover:text-red-400 transition-colors" title="Supprimer">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -48,6 +48,8 @@ export interface WellnessSleep {
   hr_avg: number | null;
   respiration_avg: number | null;
   feedback: string | null;
+  hrv_rmssd: number | null;
+  hrv_status: string | null;
 }
 
 export interface WellnessBodyBattery {
@@ -86,6 +88,12 @@ export interface WeeklyIntensity {
 export interface HrTrendPoint {
   date: string;
   resting: number;
+}
+
+export interface HrvTrendPoint {
+  date: string;
+  rmssd: number;
+  status: string;
 }
 
 export interface CoachBilanTrainingRec {
@@ -185,6 +193,17 @@ export interface DayMeals {
 export interface NutritionDb {
   foods: FoodItem[];
   defaultRecipes: SavedRecipe[];
+}
+
+export interface WaistEntry {
+  date: string;
+  time: string;
+  waist_cm: number;
+}
+
+export interface WaistHistory {
+  entries: WaistEntry[];
+  latest: WaistEntry | null;
 }
 
 export interface WeightEntry {
@@ -326,6 +345,7 @@ export interface WellnessSummary {
   days: WellnessDay[];
   weeklyIntensity: WeeklyIntensity;
   hrTrend7d: HrTrendPoint[];
+  hrvTrend7d: HrvTrendPoint[];
   vo2max: {
     date: string;
     vo2max: number;

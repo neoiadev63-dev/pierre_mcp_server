@@ -1,12 +1,52 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNutrition, computeNutrients } from '../../hooks/useNutrition';
 import type { MealType } from '../../hooks/useNutrition';
 import type { MealFoodEntry, SavedRecipe, FoodItem } from '../../types/wellness';
 import { searchOpenFoodFacts } from '../../utils/openFoodFacts';
 import type { OffFoodResult } from '../../utils/openFoodFacts';
+
+const LS_RECENT_FOODS_KEY = 'pierre_recent_foods';
+const LS_FAVORITE_RECIPES_KEY = 'pierre_favorite_recipes';
+const MAX_RECENT = 10;
+
+// Quick quantity buttons
+const QUICK_QUANTITIES = [
+  { label: '1 pincée', grams: 1 },
+  { label: '1 c.c.', grams: 5 },
+  { label: '1 c.s.', grams: 15 },
+  { label: '50g', grams: 50 },
+  { label: '100g', grams: 100 },
+  { label: '1 tasse', grams: 240 },
+];
+
+function loadRecentFoods(): { id: string; name: string }[] {
+  try {
+    const raw = localStorage.getItem(LS_RECENT_FOODS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveRecentFood(food: { id: string; name: string }) {
+  const recent = loadRecentFoods().filter(f => f.id !== food.id);
+  recent.unshift(food);
+  localStorage.setItem(LS_RECENT_FOODS_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
+}
+
+function loadFavoriteRecipeIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_FAVORITE_RECIPES_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch { /* ignore */ }
+  return new Set();
+}
+
+function saveFavoriteRecipeIds(ids: Set<string>) {
+  localStorage.setItem(LS_FAVORITE_RECIPES_KEY, JSON.stringify([...ids]));
+}
 
 // Recommended daily intake (homme 51 ans, 83.6 kg, perte de poids ~1800-1900 kcal)
 const RDA = {
@@ -53,16 +93,23 @@ function normalizeSearch(text: string): string {
     .replace(/(.)\1+/g, '$1'); // collapse doubles: "carrotte" → "carote"
 }
 
-function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = Math.min(100, (value / max) * 100);
+function rdaColor(pct: number): string {
+  if (pct > 100) return '#EF4444'; // red - over RDA
+  if (pct >= 80) return '#F59E0B'; // yellow - approaching
+  return '#4ADE80'; // green - under
+}
+
+function ProgressBar({ value, max, color, autoColor }: { value: number; max: number; color?: string; autoColor?: boolean }) {
+  const pct = Math.min(120, (value / max) * 100);
+  const barColor = autoColor ? rdaColor(pct) : (color || '#4ADE80');
   return (
     <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: barColor }} />
     </div>
   );
 }
 
-function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onAddRecipe, onAddOffFood, recipes, foods }: {
+function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onAddRecipe, onAddOffFood, recipes, foods, favoriteRecipeIds, onToggleFavorite, onDuplicateYesterday }: {
   mealType: MealType;
   entries: MealFoodEntry[];
   onAdd: (entry: MealFoodEntry) => void;
@@ -72,6 +119,9 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
   onAddOffFood: (food: OffFoodResult, quantity_g: number) => void;
   recipes: SavedRecipe[];
   foods: { id: string; name: string }[];
+  favoriteRecipeIds: Set<string>;
+  onToggleFavorite: (id: string) => void;
+  onDuplicateYesterday?: (mealType: MealType) => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,11 +137,18 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
   const abortRef = useRef<AbortController | null>(null);
   const { label, icon } = MEAL_LABELS[mealType];
 
+  const recentFoods = useMemo(() => loadRecentFoods(), []);
+
   const filteredFoods = useMemo(() => {
-    if (!searchQuery.trim()) return foods.slice(0, 10);
+    if (!searchQuery.trim()) {
+      // Show recent foods first, then fill with all foods
+      const recentIds = new Set(recentFoods.map(f => f.id));
+      const rest = foods.filter(f => !recentIds.has(f.id)).slice(0, Math.max(0, 10 - recentFoods.length));
+      return [...recentFoods.filter(rf => foods.some(f => f.id === rf.id)), ...rest].slice(0, 10);
+    }
     const q = normalizeSearch(searchQuery);
     return foods.filter(f => normalizeSearch(f.name).includes(q)).slice(0, 10);
-  }, [searchQuery, foods]);
+  }, [searchQuery, foods, recentFoods]);
 
   // Debounced OFF search
   useEffect(() => {
@@ -148,18 +205,54 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
       </div>
 
       {!collapsed && <>
-      {/* Recipe picker */}
+      {/* Recipe picker with favorites */}
       {showRecipes && (
         <div className="space-y-1 p-2 rounded-lg bg-white/[0.03] border border-white/5">
-          {recipes.map(recipe => (
+          {/* Favorites first */}
+          {recipes.filter(r => favoriteRecipeIds.has(r.id)).length > 0 && (
+            <>
+              <p className="text-[9px] text-pierre-nutrition px-3 py-0.5 uppercase tracking-wider">Favoris</p>
+              {recipes.filter(r => favoriteRecipeIds.has(r.id)).map(recipe => (
+                <div key={recipe.id} className="flex items-center gap-1">
+                  <button
+                    onClick={() => { onAddRecipe(recipe); setShowRecipes(false); }}
+                    className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between"
+                  >
+                    <span className="text-sm text-zinc-300">{recipe.name}</span>
+                    <span className="text-[10px] text-zinc-500">{recipe.items.length} items</span>
+                  </button>
+                  <button onClick={() => onToggleFavorite(recipe.id)} className="p-1 text-pierre-nutrition" title="Retirer des favoris">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  </button>
+                </div>
+              ))}
+              <div className="border-t border-white/5 my-1" />
+            </>
+          )}
+          {/* Duplicate yesterday */}
+          {onDuplicateYesterday && (
             <button
-              key={recipe.id}
-              onClick={() => { onAddRecipe(recipe); setShowRecipes(false); }}
-              className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between"
+              onClick={() => { onDuplicateYesterday(mealType); setShowRecipes(false); }}
+              className="w-full text-left px-3 py-2 rounded-lg hover:bg-pierre-violet/10 transition-colors flex items-center gap-2 text-sm text-pierre-violet-light"
             >
-              <span className="text-sm text-zinc-300">{recipe.name}</span>
-              <span className="text-[10px] text-zinc-500">{recipe.items.length} items</span>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              Dupliquer d'hier
             </button>
+          )}
+          {/* All recipes */}
+          {recipes.filter(r => !favoriteRecipeIds.has(r.id)).map(recipe => (
+            <div key={recipe.id} className="flex items-center gap-1">
+              <button
+                onClick={() => { onAddRecipe(recipe); setShowRecipes(false); }}
+                className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between"
+              >
+                <span className="text-sm text-zinc-300">{recipe.name}</span>
+                <span className="text-[10px] text-zinc-500">{recipe.items.length} items</span>
+              </button>
+              <button onClick={() => onToggleFavorite(recipe.id)} className="p-1 text-zinc-600 hover:text-pierre-nutrition transition-colors" title="Ajouter aux favoris">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -205,11 +298,15 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
           {/* Local results */}
           {searchMode === 'local' && (
             <div className="max-h-40 overflow-y-auto space-y-0.5">
+              {!searchQuery.trim() && recentFoods.length > 0 && (
+                <p className="text-[9px] text-zinc-600 px-3 py-0.5 uppercase tracking-wider">Récents</p>
+              )}
               {filteredFoods.map(food => (
                 <button
                   key={food.id}
                   onClick={() => {
                     onAdd({ foodId: food.id, name: food.name, quantity_g: Number(quantity) || 100 });
+                    saveRecentFood({ id: food.id, name: food.name });
                     setSearchQuery('');
                   }}
                   className="w-full text-left px-3 py-1.5 rounded hover:bg-white/5 text-sm text-zinc-300 transition-colors"
@@ -251,6 +348,23 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
               )}
             </div>
           )}
+
+          {/* Quick quantity buttons */}
+          <div className="flex flex-wrap gap-1">
+            {QUICK_QUANTITIES.map(q => (
+              <button
+                key={q.label}
+                onClick={() => setQuantity(String(q.grams))}
+                className={`text-[10px] px-2 py-1 rounded transition-colors ${
+                  quantity === String(q.grams)
+                    ? 'bg-pierre-violet/30 text-pierre-violet'
+                    : 'bg-white/5 text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
 
           <div className="flex items-center gap-2">
             <label className="text-[10px] text-zinc-500">Quantité (g):</label>
@@ -350,6 +464,37 @@ export default function NutritionTracker() {
   const [showMicros, setShowMicros] = useState(false);
   const [savingRecipe, setSavingRecipe] = useState<MealType | null>(null);
   const [recipeName, setRecipeName] = useState('');
+  const [favoriteRecipeIds, setFavoriteRecipeIds] = useState<Set<string>>(loadFavoriteRecipeIds);
+
+  const toggleFavorite = useCallback((id: string) => {
+    setFavoriteRecipeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      saveFavoriteRecipeIds(next);
+      return next;
+    });
+  }, []);
+
+  // Duplicate yesterday's meal
+  const handleDuplicateYesterday = useCallback((mealType: MealType) => {
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yStr = yesterday.toISOString().slice(0, 10);
+      // Try to find yesterday's data in localStorage history
+      const raw = localStorage.getItem('pierre_day_meals');
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.date === yStr && data[mealType]?.length > 0) {
+          for (const entry of data[mealType]) {
+            addFood(mealType, entry);
+          }
+          return;
+        }
+      }
+    } catch { /* ignore */ }
+  }, [addFood]);
 
   if (isLoading || !db) {
     return (
@@ -423,6 +568,9 @@ export default function NutritionTracker() {
                 onAddOffFood={(food, qty) => handleAddOffFood(mealType, food, qty)}
                 recipes={allRecipes}
                 foods={foodList}
+                favoriteRecipeIds={favoriteRecipeIds}
+                onToggleFavorite={toggleFavorite}
+                onDuplicateYesterday={handleDuplicateYesterday}
               />
               {/* Meal subtotal */}
               {meals[mealType].length > 0 && (
@@ -491,7 +639,7 @@ export default function NutritionTracker() {
               const val = dayTotal[key] || 0;
               const rda = RDA[key as keyof typeof RDA];
               const pct = rda ? Math.round((val / rda) * 100) : null;
-              const color = pct === null ? '#71717a' : pct >= 80 ? '#4ADE80' : pct >= 40 ? '#F59E0B' : '#EF4444';
+              const color = pct === null ? '#71717a' : rdaColor(pct);
               return (
                 <div key={key} className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
                   <div className="flex items-center justify-between">
@@ -499,7 +647,7 @@ export default function NutritionTracker() {
                     {pct !== null && <span className="text-[9px]" style={{ color }}>{pct}%</span>}
                   </div>
                   <span className="text-sm font-medium text-white">{val.toFixed(1)} {info.unit}</span>
-                  {rda && <ProgressBar value={val} max={rda} color={color} />}
+                  {rda && <ProgressBar value={val} max={rda} autoColor />}
                 </div>
               );
             })}
@@ -513,8 +661,18 @@ export default function NutritionTracker() {
             <div className="flex flex-wrap gap-2">
               {allRecipes.map(recipe => {
                 const total = computeNutrients(recipe.items, foodsMap);
+                const isFav = favoriteRecipeIds.has(recipe.id);
                 return (
                   <div key={recipe.id} className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 flex items-center gap-2 group">
+                    <button
+                      onClick={() => toggleFavorite(recipe.id)}
+                      className={`transition-colors ${isFav ? 'text-pierre-nutrition' : 'text-zinc-600 hover:text-pierre-nutrition'}`}
+                      title={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                    >
+                      <svg className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    </button>
                     <span className="text-sm text-zinc-300">{recipe.name}</span>
                     <span className="text-[9px] text-zinc-500">{Math.round(total.calories)} kcal</span>
                     {!recipe.id.startsWith('super_bowl') && (

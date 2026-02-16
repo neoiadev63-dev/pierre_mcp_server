@@ -7,6 +7,7 @@ import { Line } from 'react-chartjs-2';
 import type { TooltipItem } from 'chart.js';
 import type { WeightHistory, WeightEntry } from '../../types/wellness';
 import { useChartResponsive } from '../../hooks/useChartResponsive';
+import WaistTracker from './WaistTracker';
 
 interface WeightFullPageProps {
   weightHistory: WeightHistory | null;
@@ -235,6 +236,9 @@ export default function WeightFullPage({ weightHistory }: WeightFullPageProps) {
 
   return (
     <div className="space-y-5">
+      {/* Waist Tracker */}
+      <WaistTracker />
+
       {/* Period selector */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">

@@ -36,6 +36,29 @@ function loadMeals(): DayMeals {
 
 function saveMeals(meals: DayMeals) {
   localStorage.setItem(LS_MEALS_KEY, JSON.stringify(meals));
+  // Sync to server (fire-and-forget)
+  syncMealsToServer(meals);
+}
+
+async function syncMealsToServer(meals: DayMeals): Promise<void> {
+  try {
+    await fetch('/api/wellness/nutrition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(meals),
+    });
+  } catch { /* fire-and-forget */ }
+}
+
+async function fetchMealsFromServer(date: string): Promise<DayMeals | null> {
+  try {
+    const res = await fetch(`/api/wellness/nutrition?date=${date}`, { credentials: 'include' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.date) return data as DayMeals;
+  } catch { /* ignore */ }
+  return null;
 }
 
 function loadRecipes(): SavedRecipe[] {
@@ -95,6 +118,23 @@ export function useNutrition() {
   const [meals, setMealsState] = useState<DayMeals>(loadMeals);
   const [userRecipes, setUserRecipesState] = useState<SavedRecipe[]>(loadRecipes);
   const [customFoods, setCustomFoodsState] = useState<FoodItem[]>(loadCustomFoods);
+
+  // On mount: try loading meals from server (prefer server data over localStorage)
+  useEffect(() => {
+    let cancelled = false;
+    const today = todayStr();
+    fetchMealsFromServer(today).then(serverMeals => {
+      if (cancelled) return;
+      if (serverMeals && serverMeals.date === today) {
+        const totalItems = (serverMeals.breakfast?.length || 0) + (serverMeals.lunch?.length || 0) + (serverMeals.dinner?.length || 0);
+        if (totalItems > 0) {
+          setMealsState(serverMeals);
+          localStorage.setItem(LS_MEALS_KEY, JSON.stringify(serverMeals));
+        }
+      }
+    });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Merge default recipes with user recipes
   const allRecipes = useMemo(() => {

@@ -12,8 +12,10 @@ const ActivitiesListPage = lazy(() => import('./ActivitiesListPage'));
 const WeightFullPage = lazy(() => import('./WeightFullPage'));
 const HealthSnapshotPage = lazy(() => import('./HealthSnapshotPage'));
 const SleepFullPage = lazy(() => import('./SleepFullPage'));
+const BilanCorporelPage = lazy(() => import('./BilanCorporelPage'));
+const RideReportPage = lazy(() => import('./RideReportPage'));
 
-type WellnessView = 'dashboard' | 'activities' | 'weight' | 'health' | 'sleep';
+type WellnessView = 'dashboard' | 'activities' | 'weight' | 'health' | 'sleep' | 'bilan' | 'ride-report';
 
 export default function WellnessTab() {
   const { t } = useTranslation();
@@ -27,11 +29,19 @@ export default function WellnessTab() {
     setRefreshing(true);
     setRefreshStatus(null);
     try {
-      const res = await fetch('/wellness-refresh', { method: 'POST' });
+      const token = localStorage.getItem('auth_token');
+      const headers: HeadersInit = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch('/api/wellness/refresh', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+      });
       const json = await res.json();
-      if (json.ok) {
-        await queryClient.invalidateQueries({ queryKey: ['wellness-summary'] });
-        setRefreshStatus({ ok: true, msg: 'Données mises à jour !' });
+      if (json.ok && json.data) {
+        queryClient.setQueryData(['wellness-summary'], json.data);
+        setRefreshStatus({ ok: true, msg: 'Données Garmin mises à jour !' });
       } else {
         setRefreshStatus({ ok: false, msg: json.error || 'Erreur lors du rafraîchissement' });
       }
@@ -39,7 +49,7 @@ export default function WellnessTab() {
       setRefreshStatus({ ok: false, msg: 'Impossible de contacter le serveur' });
     } finally {
       setRefreshing(false);
-      setTimeout(() => setRefreshStatus(null), 5000);
+      setTimeout(() => setRefreshStatus(null), 8000);
     }
   }, [queryClient]);
 
@@ -49,6 +59,8 @@ export default function WellnessTab() {
     { id: 'weight' as const, label: t('wellness.tabs.weight') },
     { id: 'health' as const, label: t('wellness.tabs.health') },
     { id: 'sleep' as const, label: t('wellness.tabs.sleep') },
+    { id: 'bilan' as const, label: 'Bilan corporel' },
+    { id: 'ride-report' as const, label: 'Rapport VTT' },
   ];
 
   if (isLoading) {
@@ -117,7 +129,7 @@ export default function WellnessTab() {
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span className="text-xs text-zinc-300 hidden sm:inline">{refreshing ? 'Actualisation...' : 'Actualiser'}</span>
+            <span className="text-xs text-zinc-300 hidden sm:inline">{refreshing ? 'Sync Garmin...' : 'Actualiser'}</span>
           </button>
           {refreshStatus && (
             <span className={`text-xs ${refreshStatus.ok ? 'text-green-400' : 'text-red-400'}`}>
@@ -147,6 +159,8 @@ export default function WellnessTab() {
         )}
         {wellnessView === 'health' && <HealthSnapshotPage data={data} />}
         {wellnessView === 'sleep' && <SleepFullPage data={data} />}
+        {wellnessView === 'bilan' && <BilanCorporelPage data={data} />}
+        {wellnessView === 'ride-report' && <RideReportPage />}
       </Suspense>
     </div>
   );

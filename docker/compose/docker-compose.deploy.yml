@@ -71,6 +71,10 @@ services:
       GARMIN_PASSWORD: ${GARMIN_PASSWORD:-}
       PIERRE_GARMIN_CLIENT_ID: ${PIERRE_GARMIN_CLIENT_ID:-}
       PIERRE_GARMIN_CLIENT_SECRET: ${PIERRE_GARMIN_CLIENT_SECRET:-}
+      # Garmin refresh script
+      GARMIN_REFRESH_SCRIPT: "/app/scripts/fetch_garmin_live.py"
+      GARTH_HOME: "/app/data/.garth"
+      PIERRE_DATA_DIR: "/app/data"
       # LLM
       PIERRE_LLM_PROVIDER: ${PIERRE_LLM_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -138,10 +142,21 @@ services:
     command:
       - |
         echo "Copying frontend files to shared volume..."
+        # Preserve server-written files in data/ (e.g. wellness_summary.json)
+        if [ -d /frontend/data ]; then
+          cp -r /frontend/data /tmp/data_backup
+        fi
         rm -rf /frontend/*
         cp -r /app/frontend/dist/* /frontend/
+        # Merge: restore server-written files without overwriting new static files
+        if [ -d /tmp/data_backup ]; then
+          cp -rn /tmp/data_backup/* /frontend/data/ 2>/dev/null || true
+          rm -rf /tmp/data_backup
+        fi
         echo "Done. Files copied:"
         ls -la /frontend/
+        echo "Data dir:"
+        ls -la /frontend/data/
     volumes:
       - frontend_dist:/frontend
     restart: "no"

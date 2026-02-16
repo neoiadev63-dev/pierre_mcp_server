@@ -21,15 +21,23 @@ use crate::{
     security::cookies::get_cookie_value,
 };
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::fs;
+
+/// Query parameters for nutrition endpoint
+#[derive(serde::Deserialize)]
+struct NutritionQuery {
+    date: Option<String>,
+}
 
 /// Wellness routes
 pub struct WellnessRoutes;
@@ -39,6 +47,10 @@ impl WellnessRoutes {
     pub fn routes(resources: Arc<ServerResources>) -> Router {
         Router::new()
             .route("/api/wellness/summary", get(Self::handle_wellness_summary))
+            .route("/api/wellness/nutrition", get(Self::handle_get_nutrition).post(Self::handle_save_nutrition))
+            .route("/api/wellness/waist", get(Self::handle_get_waist).post(Self::handle_save_waist))
+            .route("/api/wellness/refresh", post(Self::handle_wellness_refresh))
+            .route("/api/wellness/ride-report", post(Self::handle_ride_report))
             .with_state(resources)
     }
 
@@ -63,6 +75,156 @@ impl WellnessRoutes {
             .authenticate_request(Some(&auth_value))
             .await
             .map_err(|e| AppError::auth_invalid(format!("Authentication failed: {e}")))
+    }
+
+    /// Get the data directory for file-based storage
+    fn data_dir() -> PathBuf {
+        PathBuf::from(std::env::var("PIERRE_DATA_DIR").unwrap_or_else(|_| "/app/data".to_string()))
+    }
+
+    /// Handle saving nutrition data for a given date
+    async fn handle_save_nutrition(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(body): Json<Value>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+
+        // Validate body size (max ~100KB equivalent)
+        let body_str = serde_json::to_string(&body)
+            .map_err(|e| AppError::invalid_input(format!("Invalid JSON: {e}")))?;
+        if body_str.len() > 102400 {
+            return Err(AppError::invalid_input("Payload too large (max 100KB)"));
+        }
+
+        // Extract date from body or use today
+        let date = body.get("date").and_then(|d| d.as_str()).unwrap_or("");
+        if date.is_empty() || date.len() != 10 {
+            return Err(AppError::invalid_input(
+                "Missing or invalid date (expected YYYY-MM-DD)",
+            ));
+        }
+
+        // Save to filesystem
+        let dir = Self::data_dir()
+            .join("nutrition")
+            .join(auth.user_id.to_string());
+        fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to create directory: {e}")))?;
+        let path = dir.join(format!("{date}.json"));
+        fs::write(&path, body_str)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to write file: {e}")))?;
+
+        Ok((StatusCode::OK, Json(json!({"ok": true}))).into_response())
+    }
+
+    /// Handle retrieving nutrition data for a given date
+    async fn handle_get_nutrition(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Query(params): Query<NutritionQuery>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let date = params
+            .date
+            .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+
+        let path = Self::data_dir()
+            .join("nutrition")
+            .join(auth.user_id.to_string())
+            .join(format!("{date}.json"));
+        match fs::read_to_string(&path).await {
+            Ok(content) => {
+                let value: Value = serde_json::from_str(&content).unwrap_or(Value::Null);
+                Ok((StatusCode::OK, Json(value)).into_response())
+            }
+            Err(_) => Ok((StatusCode::OK, Json(json!(null))).into_response()),
+        }
+    }
+
+    /// Handle saving a waist measurement
+    async fn handle_save_waist(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+        Json(body): Json<Value>,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+
+        // Validate the measurement
+        let waist_cm = body
+            .get("waist_cm")
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| AppError::invalid_input("Missing waist_cm"))?;
+        if !(30.0..=200.0).contains(&waist_cm) {
+            return Err(AppError::invalid_input(
+                "waist_cm must be between 30 and 200",
+            ));
+        }
+
+        let dir = Self::data_dir().join("waist");
+        fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to create directory: {e}")))?;
+        let path = dir.join(format!("{}.json", auth.user_id));
+
+        // Read existing entries
+        let mut entries: Vec<Value> = match fs::read_to_string(&path).await {
+            Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+            Err(_) => vec![],
+        };
+
+        // Add new entry
+        let now = chrono::Utc::now();
+        entries.push(json!({
+            "date": now.format("%Y-%m-%d").to_string(),
+            "time": now.format("%H:%M").to_string(),
+            "waist_cm": waist_cm,
+        }));
+
+        // Save
+        let content = serde_json::to_string(&entries)
+            .map_err(|e| AppError::internal(format!("Serialize error: {e}")))?;
+        fs::write(&path, content)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to write file: {e}")))?;
+
+        Ok((StatusCode::OK, Json(json!({"ok": true, "count": entries.len()}))).into_response())
+    }
+
+    /// Handle retrieving waist measurement history
+    async fn handle_get_waist(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        let auth = Self::authenticate(&headers, &resources).await?;
+        let path = Self::data_dir()
+            .join("waist")
+            .join(format!("{}.json", auth.user_id));
+
+        match fs::read_to_string(&path).await {
+            Ok(content) => {
+                let entries: Vec<Value> = serde_json::from_str(&content).unwrap_or_default();
+                let latest = entries.last().cloned();
+                Ok((
+                    StatusCode::OK,
+                    Json(json!({
+                        "entries": entries,
+                        "latest": latest,
+                    })),
+                )
+                    .into_response())
+            }
+            Err(_) => Ok((
+                StatusCode::OK,
+                Json(json!({
+                    "entries": [],
+                    "latest": null,
+                })),
+            )
+                .into_response()),
+        }
     }
 
     /// Build a universal request for MCP tool execution
@@ -381,6 +543,207 @@ impl WellnessRoutes {
                 }))
             })
             .unwrap_or(Value::Null)
+    }
+
+    /// Handle wellness data refresh from Garmin Connect
+    ///
+    /// Runs the Python fetch script to get latest data from all Garmin devices
+    /// (Venu 2, Edge 840, Index S2 scale) and returns the fresh WellnessSummary.
+    async fn handle_wellness_refresh(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        let _auth = Self::authenticate(&headers, &resources).await?;
+
+        let script_path = std::env::var("GARMIN_REFRESH_SCRIPT")
+            .unwrap_or_else(|_| "garmin_data_extract/fetch_garmin_live.py".to_string());
+
+        let output_path = Self::data_dir().join("wellness_summary.json");
+
+        let python_cmd = std::env::var("PYTHON_CMD").unwrap_or_else(|_| {
+            if cfg!(windows) {
+                "python".to_string()
+            } else {
+                "python3".to_string()
+            }
+        });
+
+        let garth_home = std::env::var("GARTH_HOME")
+            .unwrap_or_else(|_| Self::data_dir().join(".garth").to_string_lossy().to_string());
+
+        tracing::info!(
+            "Wellness refresh: {} {} -> {}",
+            python_cmd,
+            script_path,
+            output_path.display()
+        );
+
+        let output_path_str = output_path
+            .to_str()
+            .unwrap_or("/app/data/wellness_summary.json")
+            .to_string();
+        let garth_clone = garth_home.clone();
+        let python_clone = python_cmd.clone();
+        let script_clone = script_path.clone();
+
+        let output = tokio::task::spawn_blocking(move || {
+            std::process::Command::new(&python_clone)
+                .arg(&script_clone)
+                .env("WELLNESS_OUTPUT_PATH", &output_path_str)
+                .env("GARTH_HOME", &garth_clone)
+                .output()
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!("Task join error: {e}");
+            AppError::internal(format!("Task error: {e}"))
+        })?
+        .map_err(|e| {
+            tracing::error!("Failed to spawn refresh script: {e}");
+            AppError::internal(format!(
+                "Failed to run refresh script ({python_cmd}): {e}"
+            ))
+        })?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        if !stdout.is_empty() {
+            tracing::info!("Refresh script output:\n{stdout}");
+        }
+
+        if !output.status.success() {
+            tracing::error!(
+                "Refresh script failed (exit {}): {}",
+                output.status,
+                stderr
+            );
+            return Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "ok": false,
+                    "error": format!("Script failed: {}", stderr.chars().take(500).collect::<String>())
+                })),
+            )
+                .into_response());
+        }
+
+        // Read the generated JSON file
+        match fs::read_to_string(&output_path).await {
+            Ok(content) => match serde_json::from_str::<Value>(&content) {
+                Ok(data) => {
+                    tracing::info!("Wellness refresh complete, returning data");
+                    Ok((StatusCode::OK, Json(json!({ "ok": true, "data": data }))).into_response())
+                }
+                Err(e) => {
+                    tracing::error!("Invalid JSON in output file: {e}");
+                    Ok((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(
+                            json!({ "ok": false, "error": format!("Invalid JSON output: {e}") }),
+                        ),
+                    )
+                        .into_response())
+                }
+            },
+            Err(e) => {
+                tracing::error!("Failed to read output file: {e}");
+                Ok((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "ok": false, "error": format!("Failed to read output: {e}") })),
+                )
+                    .into_response())
+            }
+        }
+    }
+
+    /// Handle ride report generation for the latest MTB/cycling ride
+    ///
+    /// Runs the Python script with --ride-report flag to generate a comprehensive
+    /// report including weight comparison, historical analysis, and AI coaching.
+    async fn handle_ride_report(
+        State(resources): State<Arc<ServerResources>>,
+        headers: HeaderMap,
+    ) -> Result<Response, AppError> {
+        let _auth = Self::authenticate(&headers, &resources).await?;
+
+        let script_path = std::env::var("GARMIN_REFRESH_SCRIPT")
+            .unwrap_or_else(|_| "garmin_data_extract/fetch_garmin_live.py".to_string());
+
+        let data_dir = Self::data_dir();
+        let report_path = data_dir.join("ride_report.json");
+        let wellness_path = data_dir.join("wellness_summary.json");
+
+        let python_cmd = std::env::var("PYTHON_CMD").unwrap_or_else(|_| {
+            if cfg!(windows) {
+                "python".to_string()
+            } else {
+                "python3".to_string()
+            }
+        });
+
+        tracing::info!("Ride report: generating via {}", script_path);
+
+        let report_str = report_path.to_string_lossy().to_string();
+        let wellness_str = wellness_path.to_string_lossy().to_string();
+        let python_clone = python_cmd.clone();
+        let script_clone = script_path.clone();
+
+        let output = tokio::task::spawn_blocking(move || {
+            std::process::Command::new(&python_clone)
+                .arg(&script_clone)
+                .arg("--ride-report")
+                .env("RIDE_REPORT_OUTPUT", &report_str)
+                .env("WELLNESS_OUTPUT_PATH", &wellness_str)
+                .output()
+        })
+        .await
+        .map_err(|e| AppError::internal(format!("Task error: {e}")))?
+        .map_err(|e| {
+            tracing::error!("Failed to run ride report script: {e}");
+            AppError::internal(format!(
+                "Failed to run ride report ({python_cmd}): {e}"
+            ))
+        })?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        if !stdout.is_empty() {
+            tracing::info!("Ride report output:\n{stdout}");
+        }
+
+        if !output.status.success() {
+            tracing::error!("Ride report failed: {}", stderr);
+            return Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "ok": false,
+                    "error": format!("Report generation failed: {}",
+                        stderr.chars().take(500).collect::<String>())
+                })),
+            )
+                .into_response());
+        }
+
+        match fs::read_to_string(&report_path).await {
+            Ok(content) => match serde_json::from_str::<Value>(&content) {
+                Ok(data) => {
+                    tracing::info!("Ride report generated successfully");
+                    Ok((StatusCode::OK, Json(data)).into_response())
+                }
+                Err(e) => Ok((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "ok": false, "error": format!("Invalid report JSON: {e}") })),
+                )
+                    .into_response()),
+            },
+            Err(e) => Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "ok": false, "error": format!("Failed to read report: {e}") })),
+            )
+                .into_response()),
+        }
     }
 
     /// Build the latest WellnessDay from today's activity data
