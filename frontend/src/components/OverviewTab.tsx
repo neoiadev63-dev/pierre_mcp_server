@@ -41,7 +41,7 @@ export default function OverviewTab({ overview, overviewLoading, rateLimits, wee
   // Mini chart data
   const miniChartData = {
     labels: weeklyUsage?.time_series?.slice(-7).map((point: TimeSeriesPoint) => {
-      const date = new Date(point.date);
+      const date = new Date(point.date || '');
       return date.toLocaleDateString('en-US', { weekday: 'short' });
     }) || [],
     datasets: [

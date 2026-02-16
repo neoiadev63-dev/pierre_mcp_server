@@ -1,0 +1,158 @@
+# Pierre MCP Server - Production Dockerfile (PostgreSQL + Frontend)
+# Multi-stage build: Frontend (Bun) → Rust Server → Runtime
+
+# ============================================================
+# Stage 1: Build Frontend (Bun workspace monorepo)
+# ============================================================
+FROM oven/bun:1.1-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy root workspace config and lockfile
+COPY package.json bun.lock ./
+
+# Copy ALL workspace package.json files (needed for workspace resolution)
+COPY packages/api-client/package.json ./packages/api-client/
+COPY packages/chat-utils/package.json ./packages/chat-utils/
+COPY packages/domain-utils/package.json ./packages/domain-utils/
+COPY packages/eslint-config-pierre/package.json ./packages/eslint-config-pierre/
+COPY packages/mcp-types/package.json ./packages/mcp-types/
+COPY packages/shared-constants/package.json ./packages/shared-constants/
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/tsconfig-pierre/package.json ./packages/tsconfig-pierre/
+COPY packages/ui-logic/package.json ./packages/ui-logic/
+COPY frontend/package.json ./frontend/
+
+# Create stub for frontend-mobile (referenced in workspaces but not needed)
+RUN mkdir -p frontend-mobile && echo '{"name":"frontend-mobile","private":true}' > frontend-mobile/package.json
+
+# Install ALL workspace dependencies from root
+RUN bun install --no-frozen-lockfile
+
+# Copy all workspace package source code (needed for @pierre/* imports)
+COPY packages/ ./packages/
+
+# Copy frontend source
+COPY frontend/ ./frontend/
+
+# Build frontend
+ENV VITE_BACKEND_URL=""
+RUN cd frontend && bun run build
+
+# ============================================================
+# Stage 2: Build Rust Server
+# ============================================================
+FROM rust:1.92-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libpq-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace manifests for dependency caching
+COPY Cargo.toml Cargo.lock ./
+COPY crates/pierre-core/Cargo.toml ./crates/pierre-core/
+COPY crates/pierre-intelligence/Cargo.toml ./crates/pierre-intelligence/
+COPY crates/pierre-providers/Cargo.toml ./crates/pierre-providers/
+
+# Create dummy source files for dependency caching
+RUN mkdir -p src/bin && \
+    echo "fn main() {}" > src/bin/pierre-mcp-server.rs && \
+    echo "pub fn dummy() {}" > src/lib.rs && \
+    mkdir -p crates/pierre-core/src && echo "pub fn dummy() {}" > crates/pierre-core/src/lib.rs && \
+    mkdir -p crates/pierre-intelligence/src && echo "pub fn dummy() {}" > crates/pierre-intelligence/src/lib.rs && \
+    mkdir -p crates/pierre-providers/src && echo "pub fn dummy() {}" > crates/pierre-providers/src/lib.rs && \
+    mkdir -p benches && \
+    for b in intelligence_bench cache_bench database_bench serialization_bench; do \
+      echo "fn main() {}" > benches/$b.rs; \
+    done
+
+# Build dependencies only (cached layer)
+RUN cargo build --release --bin pierre-mcp-server \
+    --no-default-features --features "postgresql,server-full,sqlx/migrate" \
+    || true
+
+# Remove dummy source files
+RUN rm -rf src crates/pierre-core/src crates/pierre-intelligence/src crates/pierre-providers/src
+
+# Copy real source code
+COPY src/ ./src/
+COPY crates/ ./crates/
+COPY migrations/ ./migrations/
+COPY coaches/ ./coaches/
+COPY templates/ ./templates/
+
+# Create bench stubs (benches/ excluded from Docker context)
+RUN mkdir -p benches && \
+    for b in intelligence_bench cache_bench database_bench serialization_bench; do \
+      echo "fn main() {}" > benches/$b.rs; \
+    done
+
+# Force recompilation of the main crate (cargo uses mtime)
+RUN touch src/lib.rs src/bin/pierre-mcp-server.rs \
+    crates/pierre-core/src/lib.rs \
+    crates/pierre-intelligence/src/lib.rs \
+    crates/pierre-providers/src/lib.rs
+
+# Build the actual application with PostgreSQL support
+RUN cargo build --release --bin pierre-mcp-server \
+    --no-default-features --features "postgresql,server-full,sqlx/migrate"
+
+# Verify binary
+RUN ls -lh target/release/pierre-mcp-server
+
+# ============================================================
+# Stage 3: Production Runtime
+# ============================================================
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libpq5 \
+    curl \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user and directories
+RUN useradd -m -u 1001 appuser \
+    && mkdir -p /app/data /app/frontend /app/migrations /app/coaches \
+    && chown -R appuser:appuser /app
+
+# Copy Rust binaries
+COPY --from=builder /app/target/release/pierre-mcp-server /app/
+
+# Copy migrations and coaches data
+COPY --from=builder /app/migrations/ /app/migrations/
+COPY --from=builder /app/coaches/ /app/coaches/
+
+# Copy frontend build
+COPY --from=frontend-builder /app/frontend/dist/ /app/frontend/dist/
+
+# Copy entrypoint and fix line endings (Windows CRLF → Unix LF)
+COPY docker/images/server/entrypoint.prod.sh /app/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh
+
+# Set permissions
+RUN chmod +x /app/pierre-mcp-server /app/docker-entrypoint.sh \
+    && chown -R appuser:appuser /app
+
+USER appuser
+WORKDIR /app
+
+# Environment defaults
+ENV RUST_LOG=info
+ENV HTTP_PORT=8081
+
+EXPOSE 8081
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["/app/pierre-mcp-server"]

@@ -35,6 +35,8 @@ export interface User {
   approved_by?: string;
   /** Approval timestamp */
   approved_at?: string;
+  /** Primary tenant ID for the user */
+  tenant_id?: string;
 }
 
 /** Extended user for admin views (deprecated: use User directly) */

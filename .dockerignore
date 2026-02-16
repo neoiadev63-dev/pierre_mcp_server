@@ -9,13 +9,17 @@ target/
 *.key
 *.secret
 
-# Documentation
-*.md
+# Documentation (but keep coaches/*.md which are data files)
 docs/
+book/
+GUIDE_*.md
+STRAVA_*.md
+TAPIRIIK_*.md
 
 # IDE and editor files
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -30,9 +34,7 @@ temp/
 *.tmp
 *.log
 
-# Docker files (to avoid recursive copying)
-Dockerfile*
-.dockerignore
+# Docker files (avoid recursive copying)
 docker-compose*.yml
 
 # CI/CD files
@@ -43,16 +45,36 @@ docker-compose*.yml
 .env
 .env.local
 .env.*.local
-# Note: .envrc is included for Docker builds with direnv support
+.envrc
 
 # Test data
 test_data/
 fixtures/
+benches/
 
 # Cache directories
 .cache/
-node_modules/
 
-# Backup files
+# Node modules (each stage installs its own)
+node_modules/
+frontend/node_modules/
+frontend-mobile/
+packages/*/node_modules/
+
+# Backup and data files
 *.bak
 *.backup
+backups/
+data/
+garmin_data_extract/
+garmin_extract/
+strava_upload_batches/
+
+# Python scripts (dev only)
+*.py
+*.bat
+*.ps1
+
+# Build output (built in Docker)
+frontend/dist/
+sdk/dist/

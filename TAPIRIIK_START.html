@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tapiriik - Transfert Garmin vers Strava</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .step {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+        }
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        .step-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .step-content {
+            margin-left: 50px;
+            color: #555;
+            line-height: 1.6;
+        }
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.2em;
+            margin: 20px auto;
+            display: block;
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+        .info-box {
+            background: #e3f2fd;
+            border-left: 5px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .info-box strong {
+            color: #1976D2;
+        }
+        .warning-box {
+            background: #fff3e0;
+            border-left: 5px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .warning-box strong {
+            color: #f57c00;
+        }
+        .success-box {
+            background: #e8f5e9;
+            border-left: 5px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .success-box strong {
+            color: #388e3c;
+        }
+        ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        .emoji {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Tapiriik</h1>
+        <p class="subtitle">Transfert automatique Garmin → Strava</p>
+
+        <div class="info-box">
+            <strong>📊 Vos données :</strong>
+            <ul>
+                <li>1 494 activités Garmin identifiées</li>
+                <li>54 480 fichiers .FIT (394 MB)</li>
+                <li>Transfert automatique en ~1 heure</li>
+            </ul>
+        </div>
+
+        <a href="https://tapiriik.com/" target="_blank" class="btn">
+            🚀 Ouvrir Tapiriik.com
+        </a>
+
+        <div class="step">
+            <div class="step-title">
+                <span class="step-number">1</span>
+                Créer un compte Tapiriik
+            </div>
+            <div class="step-content">
+                <ul>
+                    <li>Cliquer sur "Sign Up" en haut à droite</li>
+                    <li>Entrer votre email et créer un mot de passe</li>
+                    <li>Vérifier votre email pour activer le compte</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">
+                <span class="step-number">2</span>
+                Connecter Garmin Connect
+            </div>
+            <div class="step-content">
+                <ul>
+                    <li>Cliquer sur l'icône <strong>Garmin Connect</strong></li>
+                    <li>Cliquer sur "Connect"</li>
+                    <li>Vous serez redirigé vers Garmin.com</li>
+                    <li>Se connecter avec vos identifiants Garmin</li>
+                    <li>Autoriser Tapiriik à lire vos activités</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">
+                <span class="step-number">3</span>
+                Connecter Strava
+            </div>
+            <div class="step-content">
+                <ul>
+                    <li>Cliquer sur l'icône <strong>Strava</strong></li>
+                    <li>Cliquer sur "Connect"</li>
+                    <li>Vous serez redirigé vers Strava.com</li>
+                    <li>Se connecter avec vos identifiants Strava</li>
+                    <li>Autoriser Tapiriik à <strong>écrire</strong> des activités</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">
+                <span class="step-number">4</span>
+                Lancer la synchronisation
+            </div>
+            <div class="step-content">
+                <ul>
+                    <li>Une fois les deux services connectés (✅ Garmin + ✅ Strava)</li>
+                    <li>Cliquer sur le bouton <strong>"Synchronize Now"</strong></li>
+                    <li>Tapiriik va automatiquement transférer vos 1 494 activités</li>
+                    <li>La première sync peut prendre 1-2 heures</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="warning-box">
+            <strong>⚠️ Important :</strong>
+            <ul>
+                <li>Ne fermez pas la page pendant la synchronisation</li>
+                <li>Les doublons seront automatiquement détectés et ignorés</li>
+                <li>Seules les activités réelles seront transférées (pas le monitoring)</li>
+            </ul>
+        </div>
+
+        <div class="success-box">
+            <strong>✅ Après la synchronisation :</strong>
+            <ul>
+                <li>Toutes vos activités Garmin seront sur Strava</li>
+                <li>Les futures activités se synchroniseront automatiquement</li>
+                <li>Les segments Strava seront détectés sur vos parcours</li>
+                <li>Vos statistiques seront recalculées</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <strong>💡 Astuce :</strong> Tapiriik synchronisera aussi automatiquement toutes vos futures activités Garmin vers Strava ! Plus besoin de faire quoi que ce soit manuellement.
+        </div>
+
+        <a href="https://tapiriik.com/" target="_blank" class="btn">
+            🚀 Commencer maintenant
+        </a>
+    </div>
+</body>
+</html>

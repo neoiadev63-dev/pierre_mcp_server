@@ -74,7 +74,8 @@
     "coachStore": "Store de Coaches",
     "chat": "Discussion",
     "discover": "Découvrir",
-    "insights": "Aperçus"
+    "insights": "Aperçus",
+    "wellness": "Bien-être"
   },
   "overview": {
     "title": "Aperçu",
@@ -703,6 +704,79 @@
     "uptime": "Disponibilité",
     "performance": "Performance",
     "health": "Santé du système"
+  },
+  "wellness": {
+    "title": "Bien-être",
+    "sleep": "Sommeil",
+    "bodyBattery": "Body Battery",
+    "steps": "Pas",
+    "heartRate": "Fréquence cardiaque",
+    "intensityMinutes": "Minutes intensives",
+    "calories": "Calories",
+    "stress": "Stress",
+    "deep": "Profond",
+    "light": "Léger",
+    "rem": "REM",
+    "awake": "Éveillé",
+    "goal": "Objectif",
+    "distance": "Distance",
+    "min": "Min",
+    "max": "Max",
+    "average": "moyenne",
+    "rest": "Repos",
+    "low": "Bas",
+    "medium": "Moyen",
+    "high": "Élevé",
+    "activeCalories": "Actives",
+    "bmr": "Métabolisme",
+    "noData": "Pas de données disponibles",
+    "noDataTitle": "Aucune donnée bien-être",
+    "noDataDesc": "Lancez le script preprocess_wellness.py pour générer les données à partir de votre export Garmin.",
+    "fitnessAge": "Âge fitness",
+    "chronoAge": "Âge réel",
+    "bmi": "IMC",
+    "bodyFat": "Masse grasse",
+    "rhr": "FC repos",
+    "tabs": {
+      "dashboard": "Tableau de bord",
+      "activities": "Activités",
+      "weight": "Poids",
+      "health": "Aperçu santé",
+      "sleep": "Sommeil"
+    },
+    "sections": {
+      "focus": "Focus",
+      "overview": "Aperçu",
+      "viewAll": "Tout afficher"
+    },
+    "activities": {
+      "search": "Rechercher une activité...",
+      "all": "Tout",
+      "noResults": "Aucune activité trouvée",
+      "teAerobic": "TE aérobie",
+      "maxHr": "FC max",
+      "favorite": "Favori"
+    },
+    "weight": {
+      "addWeight": "Ajouter un poids",
+      "setGoal": "Objectif de poids",
+      "weighIns": "Pesées",
+      "1day": "1 jour",
+      "7days": "7 jours",
+      "4weeks": "4 semaines",
+      "1year": "1 an",
+      "remaining": "Reste",
+      "noData": "Aucune donnée de poids disponible"
+    },
+    "health": {
+      "title": "Aperçu santé",
+      "avgHr": "FC moyenne",
+      "avgSpo2": "SpO2 moyenne",
+      "avgResp": "Fréq. resp. moy.",
+      "avgStress": "Stress moyen",
+      "hrvRmssd": "VFC (RMSSD)",
+      "noData": "Aucun aperçu de santé disponible"
+    }
   },
   "units": {
     "ms": "ms",

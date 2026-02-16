@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import './i18n'
+import { registerServiceWorker } from './registerSW'
 
 // Register Chart.js components globally
 import {
@@ -40,3 +41,6 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Enregistrer le Service Worker pour le support PWA
+registerServiceWorker()

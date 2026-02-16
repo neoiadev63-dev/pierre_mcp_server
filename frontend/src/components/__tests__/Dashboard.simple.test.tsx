@@ -7,6 +7,31 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from '../Dashboard';
 
+// Mock i18n - return the key itself so tests are language-independent
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const translations: Record<string, string> = {
+        'nav.overview': 'Overview',
+        'nav.connections': 'Connections',
+        'nav.analytics': 'Analytics',
+        'nav.monitor': 'Monitor',
+        'nav.tools': 'Tools',
+        'nav.users': 'Users',
+        'nav.configuration': 'Configuration',
+        'nav.coaches': 'Coaches',
+        'nav.coachStore': 'Coach Store',
+        'nav.chat': 'Chat',
+        'nav.discover': 'Discover',
+        'nav.wellness': 'Wellness',
+      };
+      return translations[key] || key;
+    },
+    i18n: { language: 'en', changeLanguage: vi.fn() },
+  }),
+  Trans: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock all dependencies to avoid complex setup
 vi.mock('../UsageAnalytics', () => ({
   default: () => <div data-testid="usage-analytics">Analytics Component</div>

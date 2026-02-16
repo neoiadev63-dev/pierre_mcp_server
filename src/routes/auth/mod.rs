@@ -211,11 +211,20 @@ impl AuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
-        // Generate JWT token using RS256
+        // Get user's primary tenant BEFORE JWT generation so it's included in claims
+        let tenant_id = self
+            .data
+            .database()
+            .list_tenants_for_user(user.id)
+            .await
+            .ok()
+            .and_then(|tenants| tenants.first().map(|t| t.id.to_string()));
+
+        // Generate JWT token using RS256 with active tenant context
         let jwt_token = self
             .auth
             .auth_manager()
-            .generate_token(&user, self.auth.jwks_manager())
+            .generate_token_with_tenant(&user, self.auth.jwks_manager(), tenant_id.clone())
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
@@ -236,6 +245,7 @@ impl AuthService {
                 is_admin: user.is_admin,
                 role: user.role.as_str().to_owned(),
                 user_status: user.user_status.to_string(),
+                tenant_id,
             },
         })
     }
@@ -447,15 +457,24 @@ impl AuthService {
         user: &User,
         provider: &str,
     ) -> AppResult<LoginResponse> {
+        self.data.database().update_last_active(user.id).await?;
+
+        // Get user's primary tenant BEFORE JWT generation so it's included in claims
+        let tenant_id = self
+            .data
+            .database()
+            .list_tenants_for_user(user.id)
+            .await
+            .ok()
+            .and_then(|tenants| tenants.first().map(|t| t.id.to_string()));
+
         let jwt_token = self
             .auth
             .auth_manager()
-            .generate_token(user, self.auth.jwks_manager())
+            .generate_token_with_tenant(user, self.auth.jwks_manager(), tenant_id.clone())
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
 
         let expires_at = Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
-
-        self.data.database().update_last_active(user.id).await?;
 
         tracing::info!(user_id = %user.id, provider = %provider, "Firebase login successful");
 
@@ -470,6 +489,7 @@ impl AuthService {
                 is_admin: user.is_admin,
                 role: user.role.as_str().to_owned(),
                 user_status: user.user_status.to_string(),
+                tenant_id,
             },
         })
     }
@@ -521,6 +541,15 @@ impl AuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
+        // Get user's primary tenant
+        let tenant_id = self
+            .data
+            .database()
+            .list_tenants_for_user(user.id)
+            .await
+            .ok()
+            .and_then(|tenants| tenants.first().map(|t| t.id.to_string()));
+
         info!("Token refreshed successfully for user: {}", user.id);
 
         Ok(LoginResponse {
@@ -534,6 +563,7 @@ impl AuthService {
                 is_admin: user.is_admin,
                 role: user.role.as_str().to_owned(),
                 user_status: user.user_status.to_string(),
+                tenant_id,
             },
         })
     }
@@ -1853,6 +1883,14 @@ impl AuthRoutes {
         set_auth_cookie(&mut response_headers, &jwt_token, 24 * 60 * 60);
         set_csrf_cookie(&mut response_headers, &csrf_token, 30 * 60);
 
+        // Get user's primary tenant
+        let tenant_id = resources
+            .database
+            .list_tenants_for_user(user.id)
+            .await
+            .ok()
+            .and_then(|tenants| tenants.first().map(|t| t.id.to_string()));
+
         Span::current().record("success", true);
         info!("Session restored for user: {}", user_id);
 
@@ -1864,6 +1902,7 @@ impl AuthRoutes {
                 is_admin: user.is_admin,
                 role: user.role.as_str().to_owned(),
                 user_status: user.user_status.to_string(),
+                tenant_id,
             },
             access_token: jwt_token,
             csrf_token,
@@ -1927,6 +1966,14 @@ impl AuthRoutes {
             .update_user_display_name(user_id, display_name)
             .await?;
 
+        // Get user's primary tenant
+        let tenant_id = resources
+            .database
+            .list_tenants_for_user(updated_user.id)
+            .await
+            .ok()
+            .and_then(|tenants| tenants.first().map(|t| t.id.to_string()));
+
         // Build response
         let response = UpdateProfileResponse {
             message: "Profile updated successfully".to_owned(),
@@ -1937,6 +1984,7 @@ impl AuthRoutes {
                 is_admin: updated_user.is_admin,
                 role: updated_user.role.to_string(),
                 user_status: updated_user.user_status.to_string(),
+                tenant_id,
             },
         };
 

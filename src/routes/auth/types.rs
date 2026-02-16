@@ -62,6 +62,8 @@ pub struct UserInfo {
     pub role: String,
     /// User account status (`pending`, `active`, `suspended`)
     pub user_status: String,
+    /// Primary tenant ID for the user
+    pub tenant_id: Option<String>,
 }
 
 /// User login response

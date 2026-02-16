@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from './ui';
 import { useAuth } from '../hooks/useAuth';
 import A2AClientList from './A2AClientList';
@@ -21,6 +22,7 @@ interface TokenSuccessModalProps {
 }
 
 const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, response }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const copyToClipboard = async () => {
@@ -40,10 +42,10 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
       <div className="bg-pierre-slate rounded-lg shadow-xl max-w-2xl mx-4 w-full p-6 border border-white/10">
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-white">
-            API Token Generated Successfully
+            {t('connections.apiTokenGeneratedSuccess')}
           </h3>
           <p className="text-zinc-400 mt-1">
-            Your new API token is ready for use
+            {t('connections.newTokenReady')}
           </p>
         </div>
 
@@ -54,9 +56,9 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
               <div>
-                <h4 className="font-medium text-pierre-nutrition">Important Security Notice</h4>
+                <h4 className="font-medium text-pierre-nutrition">{t('connections.importantSecurityNotice')}</h4>
                 <p className="text-sm text-zinc-300 mt-1">
-                  This is the only time the full token will be displayed. Please copy it now and store it securely.
+                  {t('connections.tokenShownOnceNotice')}
                 </p>
               </div>
             </div>
@@ -64,7 +66,7 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
 
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-2">
-              JWT Token
+              {t('connections.jwtToken')}
             </label>
             <div className="relative">
               <textarea
@@ -80,25 +82,25 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
                 className="absolute top-2 right-2"
                 onClick={copyToClipboard}
               >
-                {copied ? '✓ Copied!' : 'Copy'}
+                {copied ? t('connections.copied') : t('connections.copy')}
               </Button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-zinc-500">Service:</span>
+              <span className="text-zinc-500">{t('connections.service')}</span>
               <span className="ml-2 font-medium text-white">{response.admin_token.service_name}</span>
             </div>
             <div>
-              <span className="text-zinc-500">Prefix:</span>
+              <span className="text-zinc-500">{t('connections.prefix')}</span>
               <span className="ml-2 font-mono text-white">{response.admin_token.token_prefix}...</span>
             </div>
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-white/10">
             <Button onClick={onClose} className="flex-1">
-              I've Saved the Token Securely
+              {t('connections.savedTokenSecurely')}
             </Button>
           </div>
         </div>
@@ -108,6 +110,7 @@ const TokenSuccessModal: React.FC<TokenSuccessModalProps> = ({ isOpen, onClose, 
 };
 
 export default function UnifiedConnections() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [activeConnectionType, setActiveConnectionType] = useState<ConnectionType>(user?.is_admin ? 'api-keys' : 'oauth-apps');
   const [activeView, setActiveView] = useState<View>('overview');
@@ -120,9 +123,9 @@ export default function UnifiedConnections() {
   const getTabDescription = () => {
     switch (activeConnectionType) {
       case 'api-keys':
-        return 'Service tokens for scripts, CI/CD pipelines, and automated tools to access Pierre programmatically.';
+        return t('connections.apiTokensDesc');
       case 'oauth-apps':
-        return 'Third-party applications authorized to access your fitness data via OAuth.';
+        return t('connections.connectedAppsDesc');
       default:
         return '';
     }
@@ -142,7 +145,7 @@ export default function UnifiedConnections() {
             }}
           >
             <span>🔑</span>
-            <span>API Tokens</span>
+            <span>{t('connections.apiTokens')}</span>
           </button>
         )}
         <button
@@ -155,7 +158,7 @@ export default function UnifiedConnections() {
           }}
         >
           <span>🤖</span>
-          <span>Connected Apps</span>
+          <span>{t('connections.connectedApps')}</span>
         </button>
       </nav>
       <p className="text-sm text-zinc-400 mt-3 mb-2">{getTabDescription()}</p>

@@ -976,8 +976,6 @@ impl MultiTenantMcpServer {
         use crate::routes::configuration::ConfigurationRoutes;
         #[cfg(feature = "client-dashboard")]
         use crate::routes::dashboard::DashboardRoutes;
-        #[cfg(feature = "client-dashboard")]
-        use crate::routes::wellness::WellnessRoutes;
         #[cfg(feature = "client-settings")]
         use crate::routes::fitness::FitnessConfigurationRoutes;
         #[cfg(feature = "client-impersonation")]
@@ -1000,6 +998,8 @@ impl MultiTenantMcpServer {
         use crate::routes::web_admin::WebAdminRoutes;
         #[cfg(feature = "transport-websocket")]
         use crate::routes::websocket::WebSocketRoutes;
+        #[cfg(feature = "client-dashboard")]
+        use crate::routes::wellness::WellnessRoutes;
         #[cfg(feature = "transport-sse")]
         use crate::sse::SseRoutes;
 

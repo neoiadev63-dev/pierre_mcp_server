@@ -23,6 +23,7 @@ export interface ListCoachesOptions {
   category?: string;
   favorites_only?: boolean;
   include_hidden?: boolean;
+  include_system?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -65,6 +66,7 @@ export function createCoachesApi(axios: AxiosInstance) {
       if (options?.category) params.append('category', options.category);
       if (options?.favorites_only) params.append('favorites_only', 'true');
       if (options?.include_hidden) params.append('include_hidden', 'true');
+      if (options?.include_system !== undefined) params.append('include_system', options.include_system.toString());
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.offset) params.append('offset', options.offset.toString());
 

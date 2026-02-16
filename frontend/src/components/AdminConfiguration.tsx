@@ -9,8 +9,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../services/api';
 import { Card, Badge, Input, Button, Modal, Tabs } from './ui';
 
-// Lazy load ToolAvailability to reduce initial bundle size
+// Lazy load ToolAvailability and AdminSettings to reduce initial bundle size
 const ToolAvailability = lazy(() => import('./ToolAvailability'));
+const AdminSettings = lazy(() => import('./AdminSettings'));
 
 // Clipboard copy with fallback for older browsers
 const copyToClipboard = async (text: string): Promise<boolean> => {
@@ -385,7 +386,10 @@ export default function AdminConfiguration() {
       {hasPendingChanges && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-zinc-400">
-            {filteredCategories.reduce((sum, cat) => sum + cat.parameters.length, 0)} parameters &bull;{' '}
+            {(() => {
+              const count = filteredCategories.reduce((sum, cat) => sum + cat.parameters.length, 0);
+              return `${count} parameter${count !== 1 ? 's' : ''}`;
+            })()} &bull;{' '}
             {filteredCategories.length} categories
           </p>
           <div className="flex items-center gap-3">
@@ -508,7 +512,7 @@ export default function AdminConfiguration() {
                     >
                       <div className="font-medium">{cat.display_name}</div>
                       <div className={`text-xs ${currentCategory?.name === cat.name ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                        {cat.parameters.length} parameters
+                        {cat.parameters.length} parameter{cat.parameters.length !== 1 ? 's' : ''}
                       </div>
                     </button>
                   ))}
@@ -569,19 +573,19 @@ export default function AdminConfiguration() {
                             <p className="text-sm text-zinc-400 mt-1">
                               {param.description}
                             </p>
-                            <div className="flex items-center gap-4 mt-2 text-xs text-zinc-500">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-xs text-zinc-500">
                               <span>Key: <code className="bg-white/10 px-1 rounded">{param.key}</code></span>
                               <span>Default: <code className="bg-white/10 px-1 rounded">{formatValue(param.default_value)}</code></span>
                               {param.valid_range && (
                                 <span>Range: {param.valid_range.min} - {param.valid_range.max}</span>
                               )}
                               {param.env_variable && (
-                                <span className="flex items-center gap-1">
+                                <span className="flex items-center gap-1 max-w-full">
                                   Env:{' '}
-                                  <code className="bg-white/10 px-1 rounded break-all">{param.env_variable}</code>
+                                  <code className="bg-white/10 px-1 rounded truncate max-w-xs" title={param.env_variable}>{param.env_variable}</code>
                                   <button
                                     onClick={() => handleCopyEnvVar(param.env_variable!)}
-                                    className="p-0.5 hover:bg-white/10 rounded transition-colors"
+                                    className="p-0.5 hover:bg-white/10 rounded transition-colors flex-shrink-0"
                                     title="Copy to clipboard"
                                   >
                                     {copiedEnvVar === param.env_variable ? (
@@ -634,15 +638,26 @@ export default function AdminConfiguration() {
         </>
       ) : activeTab === 'tools' ? (
         /* Tool Availability tab */
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center py-12">
-              <div className="pierre-spinner w-8 h-8" />
-            </div>
-          }
-        >
-          <ToolAvailability />
-        </Suspense>
+        <div className="space-y-6">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-12">
+                <div className="pierre-spinner w-8 h-8" />
+              </div>
+            }
+          >
+            <ToolAvailability />
+          </Suspense>
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center py-12">
+                <div className="pierre-spinner w-8 h-8" />
+              </div>
+            }
+          >
+            <AdminSettings />
+          </Suspense>
+        </div>
       ) : (
         /* History tab */
         <Card variant="dark">

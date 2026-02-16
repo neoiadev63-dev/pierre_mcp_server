@@ -77,7 +77,8 @@ export interface RateLimitData {
 }
 
 export interface TimeSeriesPoint {
-  date: string;
+  date?: string; // Legacy field
+  timestamp?: string; // Current API field
   request_count: number;
   error_count: number;
 }

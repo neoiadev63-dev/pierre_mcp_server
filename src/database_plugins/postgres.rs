@@ -7449,6 +7449,21 @@ impl PostgresDatabase {
                 "Failed to create admin_provisioned_keys table: {e}"
             ))
         })?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS system_secrets (
+                secret_type TEXT PRIMARY KEY,
+                secret_value TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to create system_secrets table: {e}")))?;
+
         Ok(())
     }
 

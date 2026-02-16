@@ -80,9 +80,9 @@ export const Tabs: React.FC<TabsProps> = ({
   };
 
   const containerClasses = {
-    underline: 'flex border-b border-white/10',
-    pills: 'flex gap-2 p-1 bg-pierre-slate/60 rounded-lg',
-    bordered: 'flex gap-2',
+    underline: 'flex border-b border-white/10 overflow-x-auto scrollbar-hide',
+    pills: 'flex gap-2 p-1 bg-pierre-slate/60 rounded-lg overflow-x-auto scrollbar-hide',
+    bordered: 'flex gap-2 overflow-x-auto scrollbar-hide',
   };
 
   return (
@@ -95,7 +95,7 @@ export const Tabs: React.FC<TabsProps> = ({
           aria-selected={tab.id === activeTab}
           aria-disabled={tab.disabled}
           onClick={() => handleTabClick(tab.id, tab.disabled)}
-          className={getTabClasses(tab)}
+          className={`${getTabClasses(tab)} whitespace-nowrap flex-shrink-0`}
         >
           {tab.icon && <span className="flex-shrink-0">{tab.icon}</span>}
           <span>{tab.label}</span>

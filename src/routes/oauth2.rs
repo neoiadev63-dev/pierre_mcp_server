@@ -1162,10 +1162,16 @@ impl OAuth2Routes {
             return Err(AppError::auth_invalid("Invalid password"));
         }
 
-        // Use AuthManager to generate JWT token with RS256 (proper architecture)
-        // This ensures consistent JWT handling across the entire system
+        // Get user's primary tenant so it's included in JWT claims
+        let active_tenant_id = database
+            .list_tenants_for_user(user.id)
+            .await
+            .ok()
+            .and_then(|tenants| tenants.first().map(|t| t.id.to_string()));
+
+        // Use AuthManager to generate JWT token with RS256 and active tenant context
         let token = auth_manager
-            .generate_token(&user, jwks_manager)
+            .generate_token_with_tenant(&user, jwks_manager, active_tenant_id)
             .map_err(|e| AppError::internal(format!("Token generation failed: {e}")))?;
 
         Ok(token)

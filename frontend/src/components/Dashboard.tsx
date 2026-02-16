@@ -3,6 +3,7 @@
 
 import { useState, lazy, Suspense, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { dashboardApi, adminApi, a2aApi, chatApi } from '../services/api';
 import type { DashboardOverview, RateLimitOverview, User, AdminToken } from '../types/api';
@@ -21,7 +22,6 @@ const ToolUsageBreakdown = lazy(() => import('./ToolUsageBreakdown'));
 const UnifiedConnections = lazy(() => import('./UnifiedConnections'));
 const UserManagement = lazy(() => import('./UserManagement'));
 const UserSettings = lazy(() => import('./UserSettings'));
-const AdminSettings = lazy(() => import('./AdminSettings'));
 const ApiKeyList = lazy(() => import('./ApiKeyList'));
 const ApiKeyDetails = lazy(() => import('./ApiKeyDetails'));
 const ChatTab = lazy(() => import('./ChatTab'));
@@ -32,6 +32,7 @@ const CoachLibraryTab = lazy(() => import('./CoachLibraryTab'));
 const StoreScreen = lazy(() => import('./StoreScreen'));
 const FriendsTab = lazy(() => import('./social/FriendsTab'));
 const SocialFeedTab = lazy(() => import('./social/SocialFeedTab'));
+const WellnessTab = lazy(() => import('./wellness/WellnessTab'));
 
 // Tab definition type with optional badge for notification counts
 interface TabDefinition {
@@ -63,6 +64,7 @@ const PierreLogo = () => (
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   // Default tab depends on user role: admin sees 'overview', regular users see 'chat'
   const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
   const isSuperAdmin = user?.role === 'super_admin';
@@ -70,6 +72,7 @@ export default function Dashboard() {
   // Sub-view state for insights tab (feed vs friends), matching mobile's social stack
   const [insightsView, setInsightsView] = useState<'feed' | 'friends'>('feed');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedAdminToken, setSelectedAdminToken] = useState<AdminToken | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { lastMessage } = useWebSocketContext();
@@ -210,54 +213,59 @@ export default function Dashboard() {
 
   // Tab definitions for admin users
   const adminTabs: TabDefinition[] = useMemo(() => [
-    { id: 'overview', name: 'Overview', icon: (
+    { id: 'overview', name: t('nav.overview'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     ) },
-    { id: 'connections', name: 'Connections', icon: (
+    { id: 'connections', name: t('nav.connections'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
       </svg>
     ) },
-    { id: 'analytics', name: 'Analytics', icon: (
+    { id: 'analytics', name: t('nav.analytics'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     ) },
-    { id: 'monitor', name: 'Monitor', icon: (
+    { id: 'monitor', name: t('nav.monitor'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
       </svg>
     ) },
-    { id: 'tools', name: 'Tools', icon: (
+    { id: 'tools', name: t('nav.tools'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ) },
-    { id: 'users', name: 'Users', icon: (
+    { id: 'users', name: t('nav.users'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ), badge: pendingUsers.length > 0 ? pendingUsers.length : undefined },
-    { id: 'configuration', name: 'Configuration', icon: (
+    { id: 'configuration', name: t('nav.configuration'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
       </svg>
     ) },
-    { id: 'coaches', name: 'Coaches', icon: (
+    { id: 'coaches', name: t('nav.coaches'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ) },
-    { id: 'coach-store', name: 'Coach Store', icon: (
+    { id: 'coach-store', name: t('nav.coachStore'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ), badge: (storeStats?.pending_count ?? 0) > 0 ? storeStats?.pending_count : undefined },
-  ], [pendingUsers.length, storeStats?.pending_count]);
+    { id: 'wellness', name: t('nav.wellness'), icon: (
+      <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    ) },
+  ], [t, pendingUsers.length, storeStats?.pending_count]);
 
   // Super admin tabs extend admin tabs with admin token management
   const superAdminTabs: TabDefinition[] = useMemo(() => [
@@ -271,39 +279,86 @@ export default function Dashboard() {
 
   // Regular user tabs - Settings accessible via gear icon, not sidebar
   const regularTabs: TabDefinition[] = useMemo(() => [
-    { id: 'chat', name: 'Chat', icon: (
+    { id: 'chat', name: t('nav.chat'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
       </svg>
     ) },
-    { id: 'my-coaches', name: 'Coaches', icon: (
+    { id: 'my-coaches', name: t('nav.coaches'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ) },
-    { id: 'discover', name: 'Discover', icon: (
+    { id: 'discover', name: t('nav.discover'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     ) },
-    { id: 'insights', name: 'Insights', icon: (
+    { id: 'insights', name: t('nav.insights'), icon: (
       <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
       </svg>
     ) },
-  ], []);
+    { id: 'wellness', name: t('nav.wellness'), icon: (
+      <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    ) },
+  ], [t]);
 
   // For admin users, use sidebar tabs
   const tabs = isSuperAdmin ? superAdminTabs : (isAdminUser ? adminTabs : regularTabs);
 
   // Admin user view: Full sidebar with tabs - Dark Theme
   return (
-    <div className="min-h-screen bg-pierre-dark flex">
+    <div className="min-h-screen bg-pierre-dark flex overflow-x-hidden">
+      {/* Mobile Header - visible < md */}
+      <header className="md:hidden fixed top-0 left-0 right-0 h-14 bg-pierre-slate border-b border-white/10 flex items-center justify-between px-4 z-50">
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="text-zinc-400 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+          aria-label="Open menu"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <div className="flex items-center gap-2">
+          <PierreLogo />
+          <span className="text-sm font-semibold bg-gradient-to-r from-pierre-violet to-pierre-cyan bg-clip-text text-transparent">
+            Pierre
+          </span>
+        </div>
+        <button
+          onClick={logout}
+          className="text-zinc-400 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+          aria-label="Sign out"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </button>
+      </header>
+
+      {/* Mobile Overlay Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 z-30 transition-opacity"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Vertical Sidebar - Dark */}
       <aside
         className={clsx(
           'fixed left-0 top-0 h-screen bg-pierre-slate border-r border-white/10 flex flex-col z-40 transition-all duration-300 ease-in-out overflow-hidden',
-          sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'
+          // Mobile: slide in/out
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+          // Desktop: always visible
+          'md:translate-x-0',
+          // Width
+          'w-[260px]',
+          sidebarCollapsed ? 'md:w-[72px]' : 'md:w-[260px]'
         )}
       >
         {/* Sidebar accent bar */}
@@ -335,6 +390,7 @@ export default function Dashboard() {
                 <button
                   onClick={() => {
                     setActiveTab(tab.id);
+                    setMobileMenuOpen(false);
                     // Reset conversation selection when clicking Chat tab to show coach selection
                     if (tab.id === 'chat') {
                       setSelectedConversation(null);
@@ -427,7 +483,7 @@ export default function Dashboard() {
           )}>
             {/* Clickable user area - navigates to user Settings */}
             <button
-              onClick={() => setActiveTab('settings')}
+              onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
               className={clsx(
                 'flex items-center gap-2 rounded-lg transition-all duration-200 hover:bg-white/5',
                 sidebarCollapsed ? 'p-1 flex-col' : 'flex-1 min-w-0 p-1.5'
@@ -489,10 +545,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Collapse Toggle Button */}
+        {/* Collapse Toggle Button - hidden on mobile */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-5 top-20 w-11 h-11 bg-pierre-slate border border-white/20 rounded-full flex items-center justify-center shadow-sm hover:bg-white/10 hover:border-pierre-violet transition-all duration-200 z-50"
+          className="hidden md:flex absolute -right-5 top-20 w-11 h-11 bg-pierre-slate border border-white/20 rounded-full items-center justify-center shadow-sm hover:bg-white/10 hover:border-pierre-violet transition-all duration-200 z-50"
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -514,13 +570,15 @@ export default function Dashboard() {
       {/* Main Content Area */}
       <main
         className={clsx(
-          'flex-1 h-screen flex flex-col transition-all duration-300 ease-in-out',
-          sidebarCollapsed ? 'ml-[72px]' : 'ml-[260px]'
+          'flex-1 min-w-0 h-screen flex flex-col transition-all duration-300 ease-in-out',
+          'pt-14 md:pt-0', // padding-top for mobile header
+          sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[260px]'
+          // no ml- on mobile since sidebar is overlay
         )}
       >
-        {/* Top Header Bar - only for admin tabs; user tabs have their own TabHeader */}
+        {/* Top Header Bar - only for admin tabs on desktop; mobile uses its own header */}
         {isAdminUser && (
-          <header className="bg-pierre-slate/80 backdrop-blur-lg shadow-sm border-b border-white/10 sticky top-0 z-30 flex-shrink-0">
+          <header className="hidden md:block bg-pierre-slate/80 backdrop-blur-lg shadow-sm border-b border-white/10 sticky top-0 z-30 flex-shrink-0">
             <div className="px-6 py-4 flex items-center justify-between">
               <div>
                 <h1 className="text-xl font-medium text-white">
@@ -533,7 +591,7 @@ export default function Dashboard() {
 
         {/* Content Area - full height, no extra padding for user tabs that manage their own layout */}
         <div className={clsx(
-          'flex-1 overflow-auto',
+          'flex-1 overflow-y-auto overflow-x-hidden',
           isAdminUser && activeTab !== 'chat' ? 'p-6' : ''
         )}>
 
@@ -595,14 +653,9 @@ export default function Dashboard() {
           </Suspense>
         )}
         {activeTab === 'configuration' && (
-          <div className="space-y-6">
-            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-              <AdminConfiguration />
-            </Suspense>
-            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
-              <AdminSettings />
-            </Suspense>
-          </div>
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <AdminConfiguration />
+          </Suspense>
         )}
         {activeTab === 'coaches' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
@@ -640,6 +693,11 @@ export default function Dashboard() {
         {activeTab === 'discover' && (
           <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
             <StoreScreen />
+          </Suspense>
+        )}
+        {activeTab === 'wellness' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <WellnessTab />
           </Suspense>
         )}
         {activeTab === 'settings' && (

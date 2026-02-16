@@ -73,7 +73,7 @@ export default function UsageAnalytics() {
 
   // Prepare chart data
   const timeSeriesData: ChartData = {
-    labels: analytics?.time_series?.map((point: TimeSeriesPoint) => formatDateLabel(point.date)) || [],
+    labels: analytics?.time_series?.map((point: TimeSeriesPoint) => formatDateLabel(point.timestamp || point.date || '')) || [],
     datasets: [
       {
         label: 'API Requests',

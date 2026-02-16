@@ -36,28 +36,6 @@
           }
         ]
       }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "curl -s -F \"token=$PUSHOVER_APP_TOKEN\" -F \"user=$PUSHOVER_USER_KEY\" -F \"title=Claude Code\" -F \"message=Claude Code attend votre attention\" https://api.pushover.net/1/messages.json",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "curl -s -F \"token=$PUSHOVER_APP_TOKEN\" -F \"user=$PUSHOVER_USER_KEY\" -F \"title=✅ Claude Code terminé\" -F \"message=J'ai fini de répondre. Viens voir le résultat !\" https://api.pushover.net/1/messages.json",
-            "timeout": 10
-          }
-        ]
-      }
     ]
   }
 }
