@@ -67,11 +67,13 @@ packages/*/node_modules/
 backups/
 data/
 garmin_data_extract/
+!garmin_data_extract/fetch_garmin_live.py
 garmin_extract/
 strava_upload_batches/
 
 # Python scripts (dev only)
 *.py
+!garmin_data_extract/fetch_garmin_live.py
 *.bat
 *.ps1
 
