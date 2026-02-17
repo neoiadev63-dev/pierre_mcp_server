@@ -1,9 +1,38 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WellnessSummary, WellnessDay, SleepDetail } from '../../types/wellness';
+
+// ── Sleep time adjustments (persisted in localStorage) ──────────────────────
+
+interface SleepTimeAdjustment {
+  bedtime?: string;  // "HH:MM"
+  waketime?: string; // "HH:MM"
+}
+
+function getSleepAdjustmentKey(dateStr: string): string {
+  return `pierre_sleep_adj_${dateStr}`;
+}
+
+function loadSleepAdjustment(dateStr: string): SleepTimeAdjustment {
+  try {
+    const raw = localStorage.getItem(getSleepAdjustmentKey(dateStr));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSleepAdjustment(dateStr: string, adj: SleepTimeAdjustment) {
+  const key = getSleepAdjustmentKey(dateStr);
+  if (!adj.bedtime && !adj.waketime) {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, JSON.stringify(adj));
+  }
+}
 
 interface SleepFullPageProps {
   data: WellnessSummary;
@@ -46,6 +75,11 @@ function formatDuration(seconds: number): string {
 function formatTime(epochMs: number): string {
   const d = new Date(epochMs);
   return `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
+function formatTime24(epochMs: number): string {
+  const d = new Date(epochMs);
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
 function getScoreColor(score: number): string {
@@ -497,6 +531,36 @@ export default function SleepFullPage({ data }: SleepFullPageProps) {
       .find(d => d.sleep && d.sleep.duration_seconds > 0) || null;
   }, [data.days]);
 
+  // Manual sleep time adjustments
+  const nightDate = latestDay?.date ?? '';
+  const [sleepAdj, setSleepAdj] = useState<SleepTimeAdjustment>(() => loadSleepAdjustment(nightDate));
+  const [editingBed, setEditingBed] = useState(false);
+  const [editingWake, setEditingWake] = useState(false);
+
+  // Reload adjustment when night changes
+  useEffect(() => {
+    if (nightDate) setSleepAdj(loadSleepAdjustment(nightDate));
+  }, [nightDate]);
+
+  const handleAdjChange = useCallback((field: 'bedtime' | 'waketime', value: string) => {
+    setSleepAdj(prev => {
+      const next = { ...prev, [field]: value || undefined };
+      if (nightDate) saveSleepAdjustment(nightDate, next);
+      return next;
+    });
+  }, [nightDate]);
+
+  const clearAdj = useCallback((field: 'bedtime' | 'waketime') => {
+    setSleepAdj(prev => {
+      const next = { ...prev };
+      delete next[field];
+      if (nightDate) saveSleepAdjustment(nightDate, next);
+      return next;
+    });
+    if (field === 'bedtime') setEditingBed(false);
+    else setEditingWake(false);
+  }, [nightDate]);
+
   const sleep = latestDay?.sleep;
   const detail = data.sleepDetail;
   const stressAvg = latestDay?.stress.average ?? null;
@@ -597,30 +661,124 @@ export default function SleepFullPage({ data }: SleepFullPageProps) {
       {/* ── Sleep Timeline ── */}
       {detail && detail.sleepLevels.length > 0 && (
         <div className="card-dark border border-white/10">
-          {/* Bedtime / Waketime - derive from actual sleep levels (GMT timestamps) */}
+          {/* Bedtime / Waketime - derive from actual sleep levels, with manual override */}
           {(() => {
             const levels = detail.sleepLevels;
             if (levels.length === 0) return null;
-            // Parse GMT ISO as UTC, then display in browser local time
-            const bedMs = new Date(levels[0].start.endsWith('Z') ? levels[0].start : levels[0].start + 'Z').getTime();
-            const wakeMs = new Date(
+            const garminBedMs = new Date(levels[0].start.endsWith('Z') ? levels[0].start : levels[0].start + 'Z').getTime();
+            const garminWakeMs = new Date(
               (levels[levels.length - 1].end.endsWith('Z') ? levels[levels.length - 1].end : levels[levels.length - 1].end + 'Z')
             ).getTime();
+
+            const garminBedTime = formatTime(garminBedMs);
+            const garminWakeTime = formatTime(garminWakeMs);
+            const displayBed = sleepAdj.bedtime ?? garminBedTime;
+            const displayWake = sleepAdj.waketime ?? garminWakeTime;
+            const bedIsAdjusted = !!sleepAdj.bedtime;
+            const wakeIsAdjusted = !!sleepAdj.waketime;
+
+            // Compute adjusted duration
+            let adjDurationInfo: string | null = null;
+            if (bedIsAdjusted || wakeIsAdjusted) {
+              const [bH, bM] = (displayBed).split(':').map(Number);
+              const [wH, wM] = (displayWake).split(':').map(Number);
+              const bedMin = bH * 60 + bM;
+              let wakeMin = wH * 60 + wM;
+              if (wakeMin <= bedMin) wakeMin += 24 * 60; // crosses midnight
+              const diffMin = wakeMin - bedMin;
+              const h = Math.floor(diffMin / 60);
+              const m = diffMin % 60;
+              adjDurationInfo = `Duree ajustee : ${h}h ${m.toString().padStart(2, '0')}m`;
+            }
+
             return (
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-center">
-                  <span className="text-lg font-semibold text-white tabular-nums">
-                    {formatTime(bedMs)}
-                  </span>
-                  <span className="text-[10px] text-zinc-500 block">Heure de coucher</span>
+              <div className="mb-3">
+                <div className="flex items-center justify-between">
+                  {/* Bedtime */}
+                  <div className="text-center">
+                    {editingBed ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <input
+                          type="time"
+                          value={sleepAdj.bedtime ?? formatTime24(garminBedMs)}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => handleAdjChange('bedtime', e.target.value)}
+                          className="bg-zinc-800 border border-pierre-cyan/40 rounded px-2 py-1 text-white text-sm tabular-nums text-center w-24 focus:outline-none focus:border-pierre-cyan"
+                        />
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingBed(false)} className="text-[10px] text-pierre-cyan">OK</button>
+                          {bedIsAdjusted && (
+                            <button onClick={() => clearAdj('bedtime')} className="text-[10px] text-zinc-500 hover:text-red-400">Reset</button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setEditingBed(true)}
+                        className="group cursor-pointer"
+                        title="Ajuster l'heure de coucher"
+                      >
+                        <span className={`text-lg font-semibold tabular-nums ${bedIsAdjusted ? 'text-pierre-cyan' : 'text-white'} group-hover:text-pierre-cyan transition-colors`}>
+                          {displayBed}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 block">
+                          Heure de coucher
+                          {bedIsAdjusted && <span className="text-pierre-cyan/60 ml-1">(ajuste)</span>}
+                        </span>
+                        <svg className="w-3 h-3 mx-auto mt-0.5 text-zinc-600 group-hover:text-pierre-cyan transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  <h3 className="text-sm font-medium text-zinc-400">Ligne du temps</h3>
+
+                  {/* Waketime */}
+                  <div className="text-center">
+                    {editingWake ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <input
+                          type="time"
+                          value={sleepAdj.waketime ?? formatTime24(garminWakeMs)}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => handleAdjChange('waketime', e.target.value)}
+                          className="bg-zinc-800 border border-pierre-cyan/40 rounded px-2 py-1 text-white text-sm tabular-nums text-center w-24 focus:outline-none focus:border-pierre-cyan"
+                        />
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingWake(false)} className="text-[10px] text-pierre-cyan">OK</button>
+                          {wakeIsAdjusted && (
+                            <button onClick={() => clearAdj('waketime')} className="text-[10px] text-zinc-500 hover:text-red-400">Reset</button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setEditingWake(true)}
+                        className="group cursor-pointer"
+                        title="Ajuster l'heure de lever"
+                      >
+                        <span className={`text-lg font-semibold tabular-nums ${wakeIsAdjusted ? 'text-pierre-cyan' : 'text-white'} group-hover:text-pierre-cyan transition-colors`}>
+                          {displayWake}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 block">
+                          Heure de lever
+                          {wakeIsAdjusted && <span className="text-pierre-cyan/60 ml-1">(ajuste)</span>}
+                        </span>
+                        <svg className="w-3 h-3 mx-auto mt-0.5 text-zinc-600 group-hover:text-pierre-cyan transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <h3 className="text-sm font-medium text-zinc-400">Ligne du temps</h3>
-                <div className="text-center">
-                  <span className="text-lg font-semibold text-white tabular-nums">
-                    {formatTime(wakeMs)}
-                  </span>
-                  <span className="text-[10px] text-zinc-500 block">Heure de lever</span>
-                </div>
+
+                {/* Adjusted duration info */}
+                {adjDurationInfo && (
+                  <div className="text-center mt-2">
+                    <span className="text-xs text-pierre-cyan/80 bg-pierre-cyan/10 px-3 py-1 rounded-full border border-pierre-cyan/20">
+                      {adjDurationInfo}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })()}
