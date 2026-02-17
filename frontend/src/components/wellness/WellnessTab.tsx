@@ -4,7 +4,7 @@
 import { useState, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { useWellnessData } from '../../hooks/useWellnessData';
+import { useWellnessData, markManualRefresh } from '../../hooks/useWellnessData';
 import { Tabs } from '../ui/Tabs';
 
 const WellnessDashboard = lazy(() => import('./WellnessDashboard'));
@@ -40,6 +40,7 @@ export default function WellnessTab() {
       });
       const json = await res.json();
       if (json.ok && json.data) {
+        markManualRefresh();
         queryClient.setQueryData(['wellness-summary'], json.data);
         setRefreshStatus({ ok: true, msg: 'Données Garmin mises à jour !' });
       } else {

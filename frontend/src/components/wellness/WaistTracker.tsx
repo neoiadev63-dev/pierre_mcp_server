@@ -7,10 +7,19 @@ import type { TooltipItem } from 'chart.js';
 import { useWaist } from '../../hooks/useWaist';
 import { useChartResponsive } from '../../hooks/useChartResponsive';
 
+type RiskLevel = 'low' | 'increased' | 'high';
+
+function getWaistRisk(cm: number): { level: RiskLevel; label: string; color: string; bgColor: string } {
+  if (cm < 94) return { level: 'low', label: 'Faible risque', color: '#4ADE80', bgColor: 'bg-green-500/10 border-green-500/20' };
+  if (cm <= 102) return { level: 'increased', label: 'Risque accru', color: '#F59E0B', bgColor: 'bg-amber-500/10 border-amber-500/20' };
+  return { level: 'high', label: 'Risque élevé', color: '#EF4444', bgColor: 'bg-red-500/10 border-red-500/20' };
+}
+
 export default function WaistTracker() {
   const { data, isLoading, addMeasurement, deleteMeasurement } = useWaist();
   const [inputValue, setInputValue] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
   const chartConfig = useChartResponsive();
 
   const handleAdd = () => {
@@ -29,6 +38,11 @@ export default function WaistTracker() {
     const diff = Math.round((latest - prev) * 10) / 10;
     return { value: Math.abs(diff), dir: diff > 0 ? 'up' : diff < 0 ? 'down' : 'same' as const };
   }, [data.entries]);
+
+  const currentRisk = useMemo(() => {
+    if (!data.latest) return null;
+    return getWaistRisk(data.latest.waist_cm);
+  }, [data.latest]);
 
   // Chart data: last 30 entries
   const chartData = useMemo(() => {
@@ -142,10 +156,123 @@ export default function WaistTracker() {
           </button>
         </div>
 
+        {/* Risk indicator when measurement exists */}
+        {currentRisk && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${currentRisk.bgColor}`}>
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: currentRisk.color }} />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium" style={{ color: currentRisk.color }}>
+                {currentRisk.label}
+              </span>
+              <span className="text-xs text-zinc-400 ml-2">
+                {currentRisk.level === 'low' && '(< 94 cm)'}
+                {currentRisk.level === 'increased' && '(94 - 102 cm)'}
+                {currentRisk.level === 'high' && '(> 102 cm)'}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Chart */}
         {data.entries.length > 1 && (
           <div className="h-48">
             <Line data={chartData} options={chartOptions} />
+          </div>
+        )}
+
+        {/* Recommendations section */}
+        <button
+          onClick={() => setShowRecommendations(!showRecommendations)}
+          className="w-full text-xs text-zinc-400 hover:text-zinc-200 transition-colors flex items-center justify-center gap-1.5 py-2 border-t border-white/5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {showRecommendations ? 'Masquer' : 'Voir'} les recommandations
+          <svg className={`w-3.5 h-3.5 transition-transform ${showRecommendations ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showRecommendations && (
+          <div className="space-y-3 text-sm">
+            {/* Risk zones */}
+            <div className="rounded-lg bg-white/[0.03] border border-white/5 p-4 space-y-3">
+              <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                Zones de risque (Homme - OMS/IDF)
+              </h4>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 flex-shrink-0" />
+                  <span className="text-zinc-300">&lt; 94 cm</span>
+                  <span className="text-zinc-500 ml-auto text-xs">Faible risque</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0" />
+                  <span className="text-zinc-300">94 - 102 cm</span>
+                  <span className="text-zinc-500 ml-auto text-xs">Risque accru</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-400 flex-shrink-0" />
+                  <span className="text-zinc-300">&gt; 102 cm</span>
+                  <span className="text-zinc-500 ml-auto text-xs">Risque élevé</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-zinc-500 italic leading-relaxed">
+                Tour de taille idéal pour un homme : inférieur à 94 cm. C'est un indicateur plus fiable que l'IMC pour évaluer la graisse abdominale (viscérale).
+              </p>
+            </div>
+
+            {/* Health complications */}
+            <div className="rounded-lg bg-white/[0.03] border border-white/5 p-4 space-y-3">
+              <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                Complications associées
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { name: 'Diabète de type 2', desc: 'La graisse viscérale augmente la résistance à l\'insuline' },
+                  { name: 'Maladies cardiovasculaires', desc: 'Risque accru d\'infarctus et d\'AVC' },
+                  { name: 'Hypertension artérielle', desc: 'L\'excès de graisse abdominale élève la pression' },
+                  { name: 'Apnée du sommeil', desc: 'La graisse du cou et du tronc comprime les voies respiratoires' },
+                  { name: 'Syndrome métabolique', desc: 'Combinaison de facteurs de risque métaboliques' },
+                  { name: 'Stéatose hépatique', desc: 'Accumulation de graisse dans le foie (foie gras)' },
+                ].map((c) => (
+                  <div key={c.name} className="px-3 py-2 rounded-lg bg-white/[0.02]">
+                    <span className="text-xs font-medium text-zinc-300">{c.name}</span>
+                    <p className="text-[10px] text-zinc-500 leading-snug mt-0.5">{c.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="rounded-lg bg-white/[0.03] border border-white/5 p-4 space-y-2">
+              <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                Conseils pour réduire le tour de taille
+              </h4>
+              <ul className="space-y-1.5 text-xs text-zinc-400">
+                <li className="flex items-start gap-2">
+                  <span className="text-pierre-activity mt-0.5">&#x2022;</span>
+                  <span>Activité physique régulière : 150 min/semaine d'exercice modéré (marche rapide, vélo, natation)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-pierre-activity mt-0.5">&#x2022;</span>
+                  <span>Réduire les sucres raffinés et les graisses saturées au profit de fibres, légumes et protéines maigres</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-pierre-activity mt-0.5">&#x2022;</span>
+                  <span>Gérer le stress : le cortisol favorise le stockage de graisse abdominale</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-pierre-activity mt-0.5">&#x2022;</span>
+                  <span>Dormir 7 à 9 heures par nuit : le manque de sommeil stimule la prise de poids abdominale</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-pierre-activity mt-0.5">&#x2022;</span>
+                  <span>Limiter l'alcool : les calories de l'alcool se stockent en priorité autour de l'abdomen</span>
+                </li>
+              </ul>
+            </div>
           </div>
         )}
 
@@ -192,7 +319,7 @@ export default function WaistTracker() {
 
         {data.entries.length === 0 && (
           <p className="text-sm text-zinc-500 text-center py-4">
-            Aucune mesure enregistree. Entrez votre tour de taille pour commencer le suivi.
+            Aucune mesure enregistrée. Entrez votre tour de taille pour commencer le suivi.
           </p>
         )}
       </div>
