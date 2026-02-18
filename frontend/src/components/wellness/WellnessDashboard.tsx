@@ -78,7 +78,7 @@ export default function WellnessDashboard({ data }: WellnessDashboardProps) {
       </div>
 
       {/* Nutrition Tracker */}
-      <NutritionTracker />
+      <NutritionTracker exerciseCalories={latest.calories.active} />
 
       {/* Bottom info row */}
       {data.fitnessAge && (

@@ -4,12 +4,13 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNutrition, computeNutrients } from '../../hooks/useNutrition';
 import type { MealType } from '../../hooks/useNutrition';
-import type { MealFoodEntry, SavedRecipe, FoodItem } from '../../types/wellness';
+import type { MealFoodEntry, SavedRecipe, FoodItem, NutritionGoals } from '../../types/wellness';
 import { searchOpenFoodFacts } from '../../utils/openFoodFacts';
 import type { OffFoodResult } from '../../utils/openFoodFacts';
 
 const LS_RECENT_FOODS_KEY = 'pierre_recent_foods';
 const LS_FAVORITE_RECIPES_KEY = 'pierre_favorite_recipes';
+const LS_GOALS_KEY = 'pierre_nutrition_goals';
 const MAX_RECENT = 10;
 
 // Quick quantity buttons
@@ -48,12 +49,60 @@ function saveFavoriteRecipeIds(ids: Set<string>) {
   localStorage.setItem(LS_FAVORITE_RECIPES_KEY, JSON.stringify([...ids]));
 }
 
-// Recommended daily intake (homme 51 ans, 83.6 kg, perte de poids ~1800-1900 kcal)
-const RDA = {
-  calories: 1900, protein: 130, carbs: 220, fat: 60, fiber: 30,
+// Micronutrient RDAs (static, independent of goals)
+const MICRO_RDA: Record<string, number> = {
   vitA: 900, vitC: 90, vitD: 15, vitE: 15, vitK: 120,
   vitB1: 1.2, vitB6: 1.7, vitB9: 400, vitB12: 2.4,
   iron: 8, calcium: 1000, magnesium: 420, zinc: 11, potassium: 3400,
+};
+
+// Nutrition goal defaults and helpers
+const DEFAULT_GOALS: NutritionGoals = {
+  baseTdee: 2100,
+  weightLossPerWeek: 0.5,
+  carbsPct: 50,
+  fatPct: 30,
+  proteinPct: 20,
+  fiberTarget: 30,
+};
+
+function loadGoals(): NutritionGoals {
+  try {
+    const raw = localStorage.getItem(LS_GOALS_KEY);
+    if (raw) return { ...DEFAULT_GOALS, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return { ...DEFAULT_GOALS };
+}
+
+function saveGoalsToStorage(goals: NutritionGoals) {
+  localStorage.setItem(LS_GOALS_KEY, JSON.stringify(goals));
+}
+
+interface MacroTargets {
+  calories: number;
+  carbs: number;
+  fat: number;
+  protein: number;
+  fiber: number;
+}
+
+function computeTargets(goals: NutritionGoals): MacroTargets {
+  const deficit = goals.weightLossPerWeek * 1100; // 7700 kcal per kg fat / 7 days
+  const cal = Math.max(1200, Math.round(goals.baseTdee - deficit));
+  return {
+    calories: cal,
+    carbs: Math.round((cal * goals.carbsPct / 100) / 4),
+    fat: Math.round((cal * goals.fatPct / 100) / 9),
+    protein: Math.round((cal * goals.proteinPct / 100) / 4),
+    fiber: goals.fiberTarget,
+  };
+}
+
+const MACRO_PRESETS: Record<string, { label: string; carbsPct: number; fatPct: number; proteinPct: number }> = {
+  balanced: { label: 'Équilibré', carbsPct: 50, fatPct: 30, proteinPct: 20 },
+  lowCarb: { label: 'Low-carb', carbsPct: 25, fatPct: 45, proteinPct: 30 },
+  highProtein: { label: 'Hyperprotéiné', carbsPct: 40, fatPct: 25, proteinPct: 35 },
+  keto: { label: 'Keto', carbsPct: 5, fatPct: 70, proteinPct: 25 },
 };
 
 const MEAL_LABELS: Record<MealType, { label: string; icon: string }> = {
@@ -109,13 +158,173 @@ function ProgressBar({ value, max, color, autoColor }: { value: number; max: num
   );
 }
 
-function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onAddRecipe, onAddOffFood, recipes, foods, favoriteRecipeIds, onToggleFavorite, onDuplicateYesterday }: {
+// SVG donut ring for calorie/macro circular displays
+function DonutRing({ size, strokeWidth, value, max, color, children }: {
+  size: number; strokeWidth: number; value: number; max: number; color: string; children?: React.ReactNode;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = max > 0 ? Math.min(1, value / max) : 0;
+  const offset = circumference * (1 - pct);
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size}>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} />
+        <circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+          strokeDasharray={circumference} strokeDashoffset={offset}
+          strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          className="transition-all duration-700"
+        />
+      </svg>
+      {children && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Goal configuration panel
+function GoalSettingsPanel({ goals, onChange }: { goals: NutritionGoals; onChange: (goals: NutritionGoals) => void }) {
+  const targets = computeTargets(goals);
+
+  const updateField = <K extends keyof NutritionGoals>(key: K, value: NutritionGoals[K]) => {
+    onChange({ ...goals, [key]: value });
+  };
+
+  const applyPreset = (preset: { carbsPct: number; fatPct: number; proteinPct: number }) => {
+    onChange({ ...goals, carbsPct: preset.carbsPct, fatPct: preset.fatPct, proteinPct: preset.proteinPct });
+  };
+
+  return (
+    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-4">
+      <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+        <svg className="w-4 h-4 text-pierre-nutrition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+        </svg>
+        Objectifs nutritionnels
+      </h4>
+
+      {/* TDEE Input */}
+      <div className="flex items-center gap-3">
+        <label className="text-xs text-zinc-400 flex-shrink-0">Dépense calorique (TDEE)</label>
+        <input
+          type="number"
+          value={goals.baseTdee}
+          onChange={e => updateField('baseTdee', Math.max(1200, Number(e.target.value) || 1200))}
+          className="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white text-center focus:outline-none focus:border-pierre-nutrition/50"
+        />
+        <span className="text-xs text-zinc-500">kcal/jour</span>
+      </div>
+
+      {/* Weight Loss Slider */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs text-zinc-400">Objectif de perte par semaine</label>
+          <span className="text-sm font-bold text-pierre-nutrition">{goals.weightLossPerWeek.toFixed(1)} kg</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.1}
+          value={goals.weightLossPerWeek}
+          onChange={e => updateField('weightLossPerWeek', Number(e.target.value))}
+          className="w-full h-2 rounded-full appearance-none cursor-pointer bg-white/10
+            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-pierre-nutrition
+            [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/20
+            [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
+            [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
+            [&::-moz-range-thumb]:bg-pierre-nutrition [&::-moz-range-thumb]:border-2
+            [&::-moz-range-thumb]:border-white/20 [&::-moz-range-thumb]:cursor-pointer"
+        />
+        <div className="flex justify-between text-[9px] text-zinc-600 mt-1">
+          <span>0 kg (maintien)</span>
+          <span>0.25 kg</span>
+          <span>0.5 kg</span>
+          <span>0.75 kg</span>
+          <span>1 kg (rapide)</span>
+        </div>
+      </div>
+
+      {/* Calculated Target Display */}
+      <div className="text-center py-3 rounded-xl bg-pierre-nutrition/10 border border-pierre-nutrition/20">
+        <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Objectif quotidien</span>
+        <div className="text-3xl font-bold text-pierre-nutrition mt-1">{targets.calories.toLocaleString()}</div>
+        <span className="text-xs text-zinc-500">kcal/jour</span>
+        {goals.weightLossPerWeek > 0 && (
+          <p className="text-[10px] text-zinc-500 mt-1">
+            Déficit : {Math.round(goals.weightLossPerWeek * 1100)} kcal/jour
+          </p>
+        )}
+      </div>
+
+      {/* Macro Presets */}
+      <div>
+        <label className="text-xs text-zinc-400 mb-2 block">Répartition des macros</label>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(MACRO_PRESETS).map(([key, preset]) => {
+            const isActive = goals.carbsPct === preset.carbsPct && goals.fatPct === preset.fatPct && goals.proteinPct === preset.proteinPct;
+            return (
+              <button
+                key={key}
+                onClick={() => applyPreset(preset)}
+                className={`text-[11px] px-3 py-1.5 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-pierre-nutrition/30 text-pierre-nutrition border border-pierre-nutrition/40'
+                    : 'bg-white/5 text-zinc-400 border border-white/10 hover:bg-white/10 hover:text-zinc-200'
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          <div className="text-center">
+            <span className="text-[10px] text-[#60A5FA] block">Glucides</span>
+            <span className="text-sm font-bold text-white">{goals.carbsPct}%</span>
+            <span className="text-[9px] text-zinc-500 block">{targets.carbs}g</span>
+          </div>
+          <div className="text-center">
+            <span className="text-[10px] text-[#FBBF24] block">Lipides</span>
+            <span className="text-sm font-bold text-white">{goals.fatPct}%</span>
+            <span className="text-[9px] text-zinc-500 block">{targets.fat}g</span>
+          </div>
+          <div className="text-center">
+            <span className="text-[10px] text-[#C084FC] block">Protéines</span>
+            <span className="text-sm font-bold text-white">{goals.proteinPct}%</span>
+            <span className="text-[9px] text-zinc-500 block">{targets.protein}g</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Fiber Target */}
+      <div className="flex items-center gap-3">
+        <label className="text-xs text-zinc-400 flex-shrink-0">Objectif fibres</label>
+        <input
+          type="number"
+          value={goals.fiberTarget}
+          onChange={e => updateField('fiberTarget', Math.max(0, Number(e.target.value) || 0))}
+          className="w-20 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white text-center focus:outline-none focus:border-pierre-nutrition/50"
+        />
+        <span className="text-xs text-zinc-500">g/jour</span>
+      </div>
+    </div>
+  );
+}
+
+function MealSection({ mealType, entries, onAdd, onToggleExclude, onUpdateQuantity, onAddRecipe, onAddExtra, onAddOffFood, recipes, foods, favoriteRecipeIds, onToggleFavorite, onDuplicateYesterday }: {
   mealType: MealType;
   entries: MealFoodEntry[];
   onAdd: (entry: MealFoodEntry) => void;
-  onRemove: (index: number) => void;
+  onToggleExclude: (index: number) => void;
   onUpdateQuantity: (index: number, newQuantity: number) => void;
   onAddRecipe: (recipe: SavedRecipe) => void;
+  onAddExtra: (entry: MealFoodEntry) => void;
   onAddOffFood: (food: OffFoodResult, quantity_g: number) => void;
   recipes: SavedRecipe[];
   foods: { id: string; name: string }[];
@@ -127,7 +336,7 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
   const [searchQuery, setSearchQuery] = useState('');
   const [quantity, setQuantity] = useState('100');
   const [showRecipes, setShowRecipes] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [offResults, setOffResults] = useState<OffFoodResult[]>([]);
   const [offLoading, setOffLoading] = useState(false);
   const [searchMode, setSearchMode] = useState<'local' | 'online'>('local');
@@ -213,17 +422,33 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
             <>
               <p className="text-[9px] text-pierre-nutrition px-3 py-0.5 uppercase tracking-wider">Favoris</p>
               {recipes.filter(r => favoriteRecipeIds.has(r.id)).map(recipe => (
-                <div key={recipe.id} className="flex items-center gap-1">
-                  <button
-                    onClick={() => { onAddRecipe(recipe); setShowRecipes(false); }}
-                    className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between"
-                  >
-                    <span className="text-sm text-zinc-300">{recipe.name}</span>
-                    <span className="text-[10px] text-zinc-500">{recipe.items.length} items</span>
-                  </button>
-                  <button onClick={() => onToggleFavorite(recipe.id)} className="p-1 text-pierre-nutrition" title="Retirer des favoris">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                  </button>
+                <div key={recipe.id}>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { onAddRecipe(recipe); setShowRecipes(false); }}
+                      className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between"
+                    >
+                      <span className="text-sm text-zinc-300">{recipe.name}</span>
+                      <span className="text-[10px] text-zinc-500">{recipe.items.length} items</span>
+                    </button>
+                    <button onClick={() => onToggleFavorite(recipe.id)} className="p-1 text-pierre-nutrition" title="Retirer des favoris">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </button>
+                  </div>
+                  {recipe.extras && recipe.extras.length > 0 && (
+                    <div className="flex flex-wrap gap-1 px-3 pb-1">
+                      {recipe.extras.map(extra => (
+                        <button
+                          key={extra.foodId}
+                          onClick={() => { onAddExtra(extra); }}
+                          className="text-[10px] px-2 py-1 rounded-md bg-pierre-activity/10 text-pierre-activity border border-pierre-activity/20 hover:bg-pierre-activity/20 transition-colors flex items-center gap-1"
+                          title={`Ajouter ${extra.name}`}
+                        >
+                          <span>+</span> {extra.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <div className="border-t border-white/5 my-1" />
@@ -241,17 +466,33 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
           )}
           {/* All recipes */}
           {recipes.filter(r => !favoriteRecipeIds.has(r.id)).map(recipe => (
-            <div key={recipe.id} className="flex items-center gap-1">
-              <button
-                onClick={() => { onAddRecipe(recipe); setShowRecipes(false); }}
-                className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between"
-              >
-                <span className="text-sm text-zinc-300">{recipe.name}</span>
-                <span className="text-[10px] text-zinc-500">{recipe.items.length} items</span>
-              </button>
-              <button onClick={() => onToggleFavorite(recipe.id)} className="p-1 text-zinc-600 hover:text-pierre-nutrition transition-colors" title="Ajouter aux favoris">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-              </button>
+            <div key={recipe.id}>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { onAddRecipe(recipe); setShowRecipes(false); }}
+                  className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between"
+                >
+                  <span className="text-sm text-zinc-300">{recipe.name}</span>
+                  <span className="text-[10px] text-zinc-500">{recipe.items.length} items</span>
+                </button>
+                <button onClick={() => onToggleFavorite(recipe.id)} className="p-1 text-zinc-600 hover:text-pierre-nutrition transition-colors" title="Ajouter aux favoris">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </button>
+              </div>
+              {recipe.extras && recipe.extras.length > 0 && (
+                <div className="flex flex-wrap gap-1 px-3 pb-1">
+                  {recipe.extras.map(extra => (
+                    <button
+                      key={extra.foodId}
+                      onClick={() => { onAddExtra(extra); }}
+                      className="text-[10px] px-2 py-1 rounded-md bg-pierre-activity/10 text-pierre-activity border border-pierre-activity/20 hover:bg-pierre-activity/20 transition-colors flex items-center gap-1"
+                      title={`Ajouter ${extra.name}`}
+                    >
+                      <span>+</span> {extra.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -382,9 +623,11 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
       {entries.length > 0 ? (
         <div className="space-y-0.5">
           {entries.map((entry, i) => (
-            <div key={`${entry.foodId}-${i}`} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/[0.02] group">
+            <div key={`${entry.foodId}-${i}`} className={`flex items-center justify-between px-3 py-1.5 rounded-lg transition-colors ${
+              entry.excluded ? 'bg-red-500/5 border border-red-500/20' : 'bg-white/[0.02]'
+            }`}>
               <div className="flex-1 min-w-0 flex items-center">
-                <span className="text-sm text-zinc-300 truncate">{entry.name}</span>
+                <span className={`text-sm truncate ${entry.excluded ? 'text-red-400/60 line-through' : 'text-zinc-300'}`}>{entry.name}</span>
                 {editingIndex === i ? (
                   <span className="ml-2 inline-flex items-center">
                     <input
@@ -406,7 +649,7 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
                           setEditingIndex(null);
                         }
                       }}
-                      className="w-14 bg-white/10 border border-pierre-violet/50 rounded px-1.5 py-0.5 text-[11px] text-white text-center focus:outline-none"
+                      className="w-16 bg-white/10 border border-pierre-violet/50 rounded px-1.5 py-0.5 text-[11px] text-white text-center focus:outline-none"
                     />
                     <span className="text-[10px] text-zinc-500 ml-0.5">g</span>
                   </span>
@@ -417,7 +660,11 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
                       setEditingValue(String(entry.quantity_g));
                       setTimeout(() => editInputRef.current?.select(), 0);
                     }}
-                    className="ml-2 text-[10px] text-zinc-500 hover:text-pierre-violet hover:bg-white/5 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+                    className={`ml-2 text-[11px] px-2 py-0.5 rounded border border-dashed transition-colors cursor-pointer ${
+                      entry.excluded
+                        ? 'text-red-400/50 border-red-500/20 line-through'
+                        : 'text-pierre-violet border-pierre-violet/30 hover:bg-pierre-violet/10 hover:text-pierre-violet'
+                    }`}
                     title="Modifier la quantité"
                   >
                     {entry.quantity_g}g
@@ -425,12 +672,23 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
                 )}
               </div>
               <button
-                onClick={() => onRemove(i)}
-                className="text-zinc-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 p-1"
+                onClick={() => onToggleExclude(i)}
+                className={`p-1.5 rounded transition-colors ${
+                  entry.excluded
+                    ? 'text-green-400 hover:text-green-300'
+                    : 'text-zinc-600 hover:text-red-400'
+                }`}
+                title={entry.excluded ? 'Réactiver' : 'Exclure du calcul'}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                {entry.excluded ? (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
               </button>
             </div>
           ))}
@@ -443,10 +701,14 @@ function MealSection({ mealType, entries, onAdd, onRemove, onUpdateQuantity, onA
   );
 }
 
-export default function NutritionTracker() {
+interface NutritionTrackerProps {
+  exerciseCalories?: number;
+}
+
+export default function NutritionTracker({ exerciseCalories = 0 }: NutritionTrackerProps) {
   const {
     db, isLoading, foodsMap, meals, allRecipes,
-    addFood, removeFood, updateFoodQuantity, addRecipeToMeal,
+    addFood, toggleExcludeFood, updateFoodQuantity, addRecipeToMeal,
     saveAsRecipe, deleteRecipe, addCustomFood, dayTotal, mealTotals,
   } = useNutrition();
 
@@ -462,9 +724,18 @@ export default function NutritionTracker() {
   };
 
   const [showMicros, setShowMicros] = useState(false);
+  const [showGoals, setShowGoals] = useState(false);
   const [savingRecipe, setSavingRecipe] = useState<MealType | null>(null);
   const [recipeName, setRecipeName] = useState('');
   const [favoriteRecipeIds, setFavoriteRecipeIds] = useState<Set<string>>(loadFavoriteRecipeIds);
+  const [goals, setGoalsState] = useState<NutritionGoals>(loadGoals);
+
+  const updateGoals = useCallback((updated: NutritionGoals) => {
+    setGoalsState(updated);
+    saveGoalsToStorage(updated);
+  }, []);
+
+  const targets = useMemo(() => computeTargets(goals), [goals]);
 
   const toggleFavorite = useCallback((id: string) => {
     setFavoriteRecipeIds(prev => {
@@ -505,8 +776,8 @@ export default function NutritionTracker() {
   }
 
   const foodList = db.foods.map(f => ({ id: f.id, name: f.name }));
-  const macros = ['calories', 'protein', 'carbs', 'fat', 'fiber'] as const;
-  const micros = Object.keys(NUTRIENT_LABELS).filter(k => !macros.includes(k as typeof macros[number]));
+  const macroKeys = ['calories', 'protein', 'carbs', 'fat', 'fiber'] as const;
+  const micros = Object.keys(NUTRIENT_LABELS).filter(k => !macroKeys.includes(k as typeof macroKeys[number]));
 
   const handleSaveRecipe = (mealType: MealType) => {
     if (recipeName.trim() && meals[mealType].length > 0) {
@@ -515,6 +786,11 @@ export default function NutritionTracker() {
       setRecipeName('');
     }
   };
+
+  // Calorie computations (MyFitnessPal formula)
+  const foodCalories = Math.round(dayTotal.calories || 0);
+  const exerciseCal = Math.round(exerciseCalories);
+  const remainingCalories = targets.calories - foodCalories + exerciseCal;
 
   return (
     <div className="card-dark !p-0 overflow-hidden border border-pierre-nutrition/30">
@@ -528,33 +804,168 @@ export default function NutritionTracker() {
           </div>
           <h3 className="text-sm font-semibold text-white">Tracker Nutritionnel</h3>
         </div>
+        <button
+          onClick={() => setShowGoals(!showGoals)}
+          className={`text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+            showGoals
+              ? 'bg-pierre-nutrition/30 text-pierre-nutrition'
+              : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          Objectifs
+        </button>
       </div>
 
       <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
-        {/* Macro summary bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
-          {macros.map(key => {
-            const val = dayTotal[key] || 0;
-            const rda = RDA[key as keyof typeof RDA] || 1;
-            const pct = Math.round((val / rda) * 100);
-            const color = key === 'calories' ? '#F59E0B'
-              : key === 'protein' ? '#EF4444'
-              : key === 'carbs' ? '#3B82F6'
-              : key === 'fat' ? '#A855F7'
-              : '#22C55E';
-            return (
-              <div key={key} className="text-center">
-                <span className="text-lg sm:text-xl font-bold text-white">{Math.round(val)}</span>
-                <span className="text-[11px] text-zinc-500 block">{NUTRIENT_LABELS[key].unit}</span>
-                <ProgressBar value={val} max={rda} color={color} />
-                <span className="text-[9px] text-zinc-500">{pct}%</span>
-                <span className="text-[9px] text-zinc-600 block">{NUTRIENT_LABELS[key].label}</span>
+        {/* Goal Settings Panel (collapsible) */}
+        {showGoals && <GoalSettingsPanel goals={goals} onChange={updateGoals} />}
+
+        {/* ── MyFitnessPal-style Dashboard ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Calorie Summary Card */}
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
+            <div className="mb-3">
+              <h4 className="text-sm font-semibold text-white">Calories</h4>
+              <p className="text-[10px] text-zinc-500">Reste = Objectif - Aliments + Exercices</p>
+            </div>
+            <div className="flex items-center gap-5">
+              <DonutRing
+                size={130}
+                strokeWidth={12}
+                value={foodCalories}
+                max={targets.calories}
+                color={remainingCalories >= 0 ? '#4ADE80' : '#EF4444'}
+              >
+                <span className={`text-2xl font-bold ${remainingCalories >= 0 ? 'text-white' : 'text-red-400'}`}>
+                  {Math.abs(remainingCalories).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-zinc-400">{remainingCalories >= 0 ? 'Reste' : 'Excès'}</span>
+              </DonutRing>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-zinc-700/50 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-zinc-500 block leading-tight">Objectif de base</span>
+                    <span className="text-sm font-medium text-white">{targets.calories.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-zinc-700/50 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-pierre-nutrition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-zinc-500 block leading-tight">Aliments</span>
+                    <span className="text-sm font-medium text-white">{foodCalories.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-zinc-700/50 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-pierre-activity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-zinc-500 block leading-tight">Exercices</span>
+                    <span className="text-sm font-medium text-white">{exerciseCal}</span>
+                  </div>
+                </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
+
+          {/* Macronutrients Card */}
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
+            <h4 className="text-sm font-semibold text-white mb-3">Macronutriments</h4>
+            <div className="flex items-start justify-around">
+              {([
+                { key: 'carbs', label: 'Glucides', color: '#60A5FA' },
+                { key: 'fat', label: 'Lipides', color: '#FBBF24' },
+                { key: 'protein', label: 'Protéines', color: '#C084FC' },
+              ] as const).map(({ key, label, color }) => {
+                const val = Math.round(dayTotal[key] || 0);
+                const max = targets[key];
+                const remaining = Math.max(0, max - val);
+                return (
+                  <div key={key} className="text-center flex flex-col items-center">
+                    <span className="text-[10px] font-medium mb-1" style={{ color }}>{label}</span>
+                    <DonutRing size={80} strokeWidth={8} value={val} max={max} color={color}>
+                      <span className="text-lg font-bold text-white">{val}</span>
+                      <span className="text-[8px] text-zinc-500">/{max} g</span>
+                    </DonutRing>
+                    <span className="text-[10px] text-zinc-500 mt-1">{remaining} g restant(e)s</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        {/* Meals */}
+        {/* ── Summary Cards Row ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Résumé nutritionnel */}
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
+            <h4 className="text-xs font-semibold text-white mb-3">Résumé nutritionnel</h4>
+            {([
+              { label: 'Glucides', val: dayTotal.carbs, max: targets.carbs, unit: 'g', color: '#60A5FA' },
+              { label: 'Lipides', val: dayTotal.fat, max: targets.fat, unit: 'g', color: '#FBBF24' },
+              { label: 'Protéines', val: dayTotal.protein, max: targets.protein, unit: 'g', color: '#C084FC' },
+            ]).map(item => (
+              <div key={item.label} className="mb-2.5">
+                <div className="flex justify-between text-[10px] mb-0.5">
+                  <span className="text-zinc-400">{item.label}</span>
+                  <span className="text-zinc-300 font-medium">{Math.round(item.val || 0)}/{item.max}{item.unit}</span>
+                </div>
+                <ProgressBar value={item.val || 0} max={item.max} color={item.color} />
+              </div>
+            ))}
+          </div>
+
+          {/* Fibres & énergie */}
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
+            <h4 className="text-xs font-semibold text-white mb-3">Fibres & énergie</h4>
+            {([
+              { label: 'Fibres', val: dayTotal.fiber, max: targets.fiber, unit: 'g', color: '#4ADE80' },
+              { label: 'Calories nettes', val: foodCalories - exerciseCal, max: targets.calories, unit: 'kcal', color: '#F59E0B' },
+            ]).map(item => (
+              <div key={item.label} className="mb-2.5">
+                <div className="flex justify-between text-[10px] mb-0.5">
+                  <span className="text-zinc-400">{item.label}</span>
+                  <span className="text-zinc-300 font-medium">{Math.round(item.val || 0)}/{item.max}{item.unit}</span>
+                </div>
+                <ProgressBar value={Math.max(0, item.val || 0)} max={item.max} color={item.color} />
+              </div>
+            ))}
+          </div>
+
+          {/* Vitamines clés */}
+          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
+            <h4 className="text-xs font-semibold text-white mb-3">Vitamines clés</h4>
+            {([
+              { label: 'Vit. C', val: dayTotal.vitC, max: MICRO_RDA.vitC, unit: 'mg', color: '#F97316' },
+              { label: 'Vit. D', val: dayTotal.vitD, max: MICRO_RDA.vitD, unit: 'µg', color: '#A78BFA' },
+              { label: 'Fer', val: dayTotal.iron, max: MICRO_RDA.iron, unit: 'mg', color: '#FB7185' },
+            ]).map(item => (
+              <div key={item.label} className="mb-2.5">
+                <div className="flex justify-between text-[10px] mb-0.5">
+                  <span className="text-zinc-400">{item.label}</span>
+                  <span className="text-zinc-300 font-medium">{(item.val || 0).toFixed(1)}/{item.max}{item.unit}</span>
+                </div>
+                <ProgressBar value={item.val || 0} max={item.max} autoColor />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Meals ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           {(['breakfast', 'lunch', 'dinner'] as MealType[]).map(mealType => (
             <div key={mealType} className="space-y-2">
@@ -562,9 +973,10 @@ export default function NutritionTracker() {
                 mealType={mealType}
                 entries={meals[mealType]}
                 onAdd={entry => addFood(mealType, entry)}
-                onRemove={index => removeFood(mealType, index)}
+                onToggleExclude={index => toggleExcludeFood(mealType, index)}
                 onUpdateQuantity={(index, qty) => updateFoodQuantity(mealType, index, qty)}
                 onAddRecipe={recipe => addRecipeToMeal(mealType, recipe)}
+                onAddExtra={entry => addFood(mealType, entry)}
                 onAddOffFood={(food, qty) => handleAddOffFood(mealType, food, qty)}
                 recipes={allRecipes}
                 foods={foodList}
@@ -619,7 +1031,7 @@ export default function NutritionTracker() {
           ))}
         </div>
 
-        {/* Micronutrients toggle */}
+        {/* ── Micronutrients toggle ── */}
         <button
           onClick={() => setShowMicros(!showMicros)}
           className="w-full text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center justify-center gap-1 py-2 border-t border-white/5"
@@ -637,7 +1049,7 @@ export default function NutritionTracker() {
               const info = NUTRIENT_LABELS[key];
               if (!info) return null;
               const val = dayTotal[key] || 0;
-              const rda = RDA[key as keyof typeof RDA];
+              const rda = MICRO_RDA[key];
               const pct = rda ? Math.round((val / rda) * 100) : null;
               const color = pct === null ? '#71717a' : rdaColor(pct);
               return (
@@ -654,7 +1066,7 @@ export default function NutritionTracker() {
           </div>
         )}
 
-        {/* Saved recipes management */}
+        {/* ── Saved recipes management ── */}
         {allRecipes.length > 0 && (
           <div className="border-t border-white/5 pt-3">
             <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Recettes enregistrées</h4>

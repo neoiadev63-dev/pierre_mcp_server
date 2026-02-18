@@ -149,6 +149,10 @@ export interface NutrientsPer100g {
   carbs: number;
   fat: number;
   fiber: number;
+  saturated_fat?: number;
+  sugars?: number;
+  salt?: number;
+  omega3?: number;
   vitA?: number;
   vitC?: number;
   vitD?: number;
@@ -171,18 +175,30 @@ export interface FoodItem {
   name: string;
   category: string;
   per100g: NutrientsPer100g;
+  brand?: string;
+  barcode?: string;
+  quantity?: string;
+  serving_g?: number;
+  nutriscore?: string;
+  nova?: number;
+  labels?: string[];
+  stores?: string[];
+  price?: { amount: number; per_kg?: number; store?: string; date?: string };
+  image_url?: string;
 }
 
 export interface MealFoodEntry {
   foodId: string;
   name: string;
   quantity_g: number;
+  excluded?: boolean;
 }
 
 export interface SavedRecipe {
   id: string;
   name: string;
   items: MealFoodEntry[];
+  extras?: MealFoodEntry[];
 }
 
 export interface DayMeals {
@@ -195,6 +211,15 @@ export interface DayMeals {
 export interface NutritionDb {
   foods: FoodItem[];
   defaultRecipes: SavedRecipe[];
+}
+
+export interface NutritionGoals {
+  baseTdee: number;
+  weightLossPerWeek: number;
+  carbsPct: number;
+  fatPct: number;
+  proteinPct: number;
+  fiberTarget: number;
 }
 
 export interface WaistEntry {

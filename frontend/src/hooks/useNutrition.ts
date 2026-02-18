@@ -10,9 +10,26 @@ const LS_RECIPES_KEY = 'pierre_saved_recipes';
 const LS_CUSTOM_FOODS_KEY = 'pierre_custom_foods';
 
 async function fetchNutritionDb(): Promise<NutritionDb> {
-  const res = await fetch('/data/nutrition_db.json');
-  if (!res.ok) throw new Error('Failed to load nutrition database');
-  return res.json();
+  const [baseRes, offRes] = await Promise.all([
+    fetch('/data/nutrition_db.json'),
+    fetch('/data/off_products.json').catch(() => null),
+  ]);
+  if (!baseRes.ok) throw new Error('Failed to load nutrition database');
+  const base: NutritionDb = await baseRes.json();
+
+  // Merge Open Food Facts products if available
+  if (offRes && offRes.ok) {
+    try {
+      const off = await offRes.json();
+      if (off?.foods?.length) {
+        const existingIds = new Set(base.foods.map(f => f.id));
+        const newFoods = off.foods.filter((f: FoodItem) => !existingIds.has(f.id));
+        base.foods = [...base.foods, ...newFoods];
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  return base;
 }
 
 function todayStr(): string {
@@ -96,6 +113,7 @@ export function computeNutrients(entries: MealFoodEntry[], foodsMap: Map<string,
     calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0,
   };
   for (const entry of entries) {
+    if (entry.excluded) continue;
     const food = foodsMap.get(entry.foodId);
     if (!food) continue;
     const ratio = entry.quantity_g / 100;
@@ -134,7 +152,7 @@ export function useNutrition() {
       }
     });
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Merge default recipes with user recipes
   const allRecipes = useMemo(() => {
@@ -181,6 +199,15 @@ export function useNutrition() {
       ...meals,
       [mealType]: meals[mealType].map((entry, i) =>
         i === index ? { ...entry, quantity_g: newQuantity } : entry
+      ),
+    });
+  }, [meals, setMeals]);
+
+  const toggleExcludeFood = useCallback((mealType: MealType, index: number) => {
+    setMeals({
+      ...meals,
+      [mealType]: meals[mealType].map((entry, i) =>
+        i === index ? { ...entry, excluded: !entry.excluded } : entry
       ),
     });
   }, [meals, setMeals]);
@@ -237,6 +264,7 @@ export function useNutrition() {
     allRecipes,
     addFood,
     removeFood,
+    toggleExcludeFood,
     updateFoodQuantity,
     addRecipeToMeal,
     saveAsRecipe,

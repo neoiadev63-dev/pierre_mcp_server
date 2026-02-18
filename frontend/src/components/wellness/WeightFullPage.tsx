@@ -80,7 +80,7 @@ export default function WeightFullPage({ weightHistory }: WeightFullPageProps) {
   const [periodOffset, setPeriodOffset] = useState(0);
   const chartConfig = useChartResponsive();
 
-  const entries = weightHistory?.entries ?? [];
+  const entries = useMemo(() => weightHistory?.entries ?? [], [weightHistory?.entries]);
   const periodDays = PERIODS.find(p => p.key === period)!.days;
 
   // Filter entries by period
