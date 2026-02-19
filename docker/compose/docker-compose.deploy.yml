@@ -53,13 +53,13 @@ services:
       # Server
       HOST: "0.0.0.0"
       HTTP_PORT: "8081"
-      BASE_URL: "http://82.25.117.39:8081"
+      BASE_URL: "https://pierrecoach.bussethorse.fr"
       RUST_LOG: ${RUST_LOG:-info}
       # Security
       PIERRE_MASTER_ENCRYPTION_KEY: ${PIERRE_MASTER_ENCRYPTION_KEY:?Set PIERRE_MASTER_ENCRYPTION_KEY}
       PIERRE_RSA_KEY_SIZE: "4096"
       JWT_EXPIRY_HOURS: "24"
-      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_SECURE: "true"
       # Provider OAuth
       PIERRE_DEFAULT_PROVIDER: ${PIERRE_DEFAULT_PROVIDER:-strava}
       PIERRE_STRAVA_CLIENT_ID: ${PIERRE_STRAVA_CLIENT_ID:-}
@@ -83,8 +83,11 @@ services:
       # Admin
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@pierre.mcp}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Wellness output -> shared nginx volume
+      WELLNESS_OUTPUT_PATH: "/app/frontend-dist/data/wellness_summary.json"
     volumes:
       - pierre_data:/app/data
+      - frontend_dist:/app/frontend-dist
     networks:
       - pierre-internal
     healthcheck:
@@ -105,7 +108,7 @@ services:
         max-file: "5"
 
   # ============================================================
-  # Nginx - Reverse Proxy + Frontend (port 8081 exposed)
+  # Nginx - Reverse Proxy + Frontend (behind Traefik)
   # ============================================================
   nginx:
     image: nginx:alpine
@@ -114,13 +117,24 @@ services:
     depends_on:
       pierre-server:
         condition: service_healthy
-    ports:
-      - "8081:80"
     volumes:
       - ../nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - frontend_dist:/usr/share/nginx/html:ro
     networks:
       - pierre-internal
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      - traefik.http.routers.pierrecoach.rule=Host(`pierrecoach.bussethorse.fr`)
+      - traefik.http.routers.pierrecoach.entrypoints=websecure
+      - traefik.http.routers.pierrecoach.tls=true
+      - traefik.http.routers.pierrecoach.tls.certresolver=mytlschallenge
+      - traefik.http.services.pierrecoach.loadbalancer.server.port=80
+      - traefik.http.routers.pierrecoach-http.rule=Host(`pierrecoach.bussethorse.fr`)
+      - traefik.http.routers.pierrecoach-http.entrypoints=web
+      - traefik.http.routers.pierrecoach-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
     deploy:
       resources:
         limits:
@@ -198,6 +212,39 @@ services:
         limits:
           memory: 128M
 
+  # ============================================================
+  # Garmin Wellness Cron (daily refresh at 4:50 UTC = 6:50 CET)
+  # Runs fetch_garmin_live.py directly inside the pierre-server
+  # container (which has Python + garth installed) to avoid auth issues.
+  # ============================================================
+  garmin-cron:
+    image: alpine:latest
+    container_name: pierre-garmin-cron
+    restart: always
+    depends_on:
+      pierre-server:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache docker-cli
+        echo "Garmin cron: scheduling daily refresh at 04:50 UTC (06:50 CET)"
+        echo "50 4 * * * docker exec pierre-server python3 /app/scripts/fetch_garmin_live.py >> /proc/1/fd/1 2>&1" | crontab -
+        crond -f -l 2
+    networks:
+      - pierre-internal
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
 volumes:
   postgres_data:
     driver: local
@@ -211,3 +258,6 @@ volumes:
 networks:
   pierre-internal:
     driver: bridge
+  traefik:
+    external: true
+    name: n8n_default

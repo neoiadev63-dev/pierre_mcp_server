@@ -12,6 +12,7 @@ import CaloriesCard from './CaloriesCard';
 import StressCard from './StressCard';
 import CoachBilanCard from './CoachBilanCard';
 import CoachDebriefingCard from './CoachDebriefingCard';
+import HealthSnapshotCard from './HealthSnapshotCard';
 import ActivityCard from './ActivityCard';
 import WellnessChatWindow from './WellnessChatWindow';
 import CoffeeTracker from './CoffeeTracker';
@@ -33,6 +34,9 @@ export default function WellnessDashboard({ data }: WellnessDashboardProps) {
       {/* AI Coach Bilan */}
       {data.coachBilan && <CoachBilanCard bilan={data.coachBilan} />}
 
+      {/* Health Snapshot: VFC gauge + biometrics + recommendation */}
+      <HealthSnapshotCard data={data} />
+
       {/* AI Coach Debriefing with charts */}
       {data.coachDebriefing && <CoachDebriefingCard debriefing={data.coachDebriefing} data={data} />}
 
@@ -47,7 +51,7 @@ export default function WellnessDashboard({ data }: WellnessDashboardProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <SleepCard sleep={latest.sleep} />
           <BodyBatteryCard days={days} />
-          <StepsCard steps={latest.steps} />
+          <StepsCard steps={latest.steps} days={days} />
         </div>
       </div>
 

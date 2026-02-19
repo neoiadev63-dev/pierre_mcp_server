@@ -68,7 +68,7 @@ export default function Dashboard() {
   // Default tab depends on user role: admin sees 'overview', regular users see 'chat'
   const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
   const isSuperAdmin = user?.role === 'super_admin';
-  const [activeTab, setActiveTab] = useState(isAdminUser ? 'overview' : 'chat');
+  const [activeTab, setActiveTab] = useState(isAdminUser ? 'overview' : 'wellness');
   // Sub-view state for insights tab (feed vs friends), matching mobile's social stack
   const [insightsView, setInsightsView] = useState<'feed' | 'friends'>('feed');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

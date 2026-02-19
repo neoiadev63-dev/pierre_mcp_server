@@ -11,12 +11,12 @@ set -euo pipefail
 # ============================================================
 # Configuration
 # ============================================================
-SSH_HOST="${1:-82.25.117.39}"
+SSH_HOST="${1:-185.166.39.171}"
 SSH_PORT="${2:-22}"
 SSH_USER="${3:-root}"
 SSH_KEY="${SSH_KEY:-}"
 
-REMOTE_DIR="/opt/pierre"
+REMOTE_DIR="/opt/pierrecoach"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Colors
@@ -72,13 +72,14 @@ if [ -f "${PROJECT_DIR}/.envrc" ]; then
 
     cat > "${ENV_FILE}" <<ENVEOF
 # Auto-generated from .envrc - $(date)
+DOMAIN=pierrecoach.bussethorse.fr
 POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
 PIERRE_MASTER_ENCRYPTION_KEY=${PIERRE_MASTER_ENCRYPTION_KEY:-$(openssl rand -base64 32)}
 RUST_LOG=info
 PIERRE_DEFAULT_PROVIDER=${PIERRE_DEFAULT_PROVIDER:-strava}
 PIERRE_STRAVA_CLIENT_ID=${PIERRE_STRAVA_CLIENT_ID:-${STRAVA_CLIENT_ID:-}}
 PIERRE_STRAVA_CLIENT_SECRET=${PIERRE_STRAVA_CLIENT_SECRET:-${STRAVA_CLIENT_SECRET:-}}
-STRAVA_REDIRECT_URI=http://${SSH_HOST}/api/oauth/callback/strava
+STRAVA_REDIRECT_URI=https://pierrecoach.bussethorse.fr/api/oauth/callback/strava
 GARMIN_EMAIL=${GARMIN_EMAIL:-}
 GARMIN_PASSWORD=${GARMIN_PASSWORD:-}
 PIERRE_GARMIN_CLIENT_ID=${PIERRE_GARMIN_CLIENT_ID:-}
@@ -120,7 +121,6 @@ tar czf /tmp/pierre-deploy.tar.gz \
     --exclude='frontend/node_modules' \
     --exclude='packages/*/node_modules' \
     --exclude='*.db' \
-    --exclude='garmin_data_extract' \
     --exclude='garmin_extract' \
     --exclude='strava_upload_batches' \
     --exclude='frontend-mobile' \
@@ -140,8 +140,12 @@ ssh_cmd "cd ${REMOTE_DIR} && tar xzf pierre-deploy.tar.gz && rm pierre-deploy.ta
 rm -f /tmp/pierre-deploy.tar.gz
 
 # ============================================================
-# Step 4: Build and deploy
+# Step 4: Stop existing placeholder and build/deploy
 # ============================================================
+log "Stopping existing placeholder (if any)..."
+ssh_cmd "cd ${REMOTE_DIR} && docker compose down 2>/dev/null || true"
+ssh_cmd "cd ${REMOTE_DIR}/docker/compose && docker compose -f docker-compose.deploy.yml down 2>/dev/null || true"
+
 log "Building Docker images on server (this takes 10-20 minutes for Rust compilation)..."
 ssh_cmd "cd ${REMOTE_DIR}/docker/compose && docker compose -f docker-compose.deploy.yml build --no-cache pierre-server"
 
@@ -160,10 +164,10 @@ log "Verifying deployment..."
 # Check all containers are running
 ssh_cmd "docker ps --filter 'name=pierre-' --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
 
-# Check health endpoint
+# Check health endpoint (via internal Docker network)
 log "Testing health endpoint..."
 for i in 1 2 3 4 5; do
-    if ssh_cmd "curl -sf http://localhost/health" 2>/dev/null; then
+    if ssh_cmd "curl -sf http://localhost:8081/health || docker exec pierre-server curl -sf http://localhost:8081/health" 2>/dev/null; then
         log "Health check PASSED!"
         break
     fi
@@ -183,9 +187,9 @@ echo "=========================================="
 log "Deployment complete!"
 echo "=========================================="
 echo ""
-echo "  Frontend: http://${SSH_HOST}"
-echo "  API:      http://${SSH_HOST}/api/"
-echo "  Health:   http://${SSH_HOST}/health"
+echo "  Frontend: https://pierrecoach.bussethorse.fr"
+echo "  API:      https://pierrecoach.bussethorse.fr/api/"
+echo "  Health:   https://pierrecoach.bussethorse.fr/health"
 echo ""
 echo "  Admin credentials in: ${ENV_FILE}"
 echo ""
